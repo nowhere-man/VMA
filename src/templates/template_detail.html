@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}{{ template.name }} - 模板详情 - VQMR{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <div class="flex items-center flex-wrap gap-2">
+                    <h1 class="text-2xl font-bold text-gray-900">{{ template.name }}</h1>
+
+                    <!-- Sequence Type Badge -->
+                    {% set sequence_colors = {
+                        'media': 'bg-blue-100 text-blue-800',
+                        'yuv420p': 'bg-purple-100 text-purple-800'
+                    } %}
+                    <span class="px-3 py-1 rounded-full text-sm font-medium {{ sequence_colors.get(template.sequence_type, 'bg-gray-100 text-gray-800') }}">
+                        {{ 'Media' if template.sequence_type == 'media' else 'YUV 420P' }}
+                    </span>
+
+                    <!-- Encoder Badge -->
+                    {% set encoder_colors = {
+                        'ffmpeg': 'bg-indigo-100 text-indigo-800',
+                        'x264': 'bg-teal-100 text-teal-800',
+                        'x265': 'bg-pink-100 text-pink-800',
+                        'vvenc': 'bg-orange-100 text-orange-800'
+                    } %}
+                    <span class="px-3 py-1 rounded-full text-sm font-medium {{ encoder_colors.get(template.encoder_type, 'bg-gray-100 text-gray-800') }}">
+                        {{ template.encoder_type.upper() }}
+                    </span>
+
+                    <!-- Metrics Badge -->
+                    {% if not template.skip_metrics %}
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        质量指标已启用
+                    </span>
+                    {% else %}
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                        质量指标已跳过
+                    </span>
+                    {% endif %}
+                </div>
+                {% if template.description %}
+                <p class="mt-2 text-gray-600">{{ template.description }}</p>
+                {% endif %}
+                <div class="mt-3 flex items-center text-sm text-gray-500 space-x-4">
+                    <span>创建于: {{ template.created_at }}</span>
+                    <span>•</span>
+                    <span>更新于: {{ template.updated_at }}</span>
+                </div>
+            </div>
+            <div class="flex space-x-2 ml-4">
+                <button id="validateBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                    验证路径
+                </button>
+                <a href="/templates/{{ template.template_id }}/edit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
+                    编辑
+                </a>
+                <button id="executeBtn" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">
+                    执行转码
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Validation Results -->
+    <div id="validationResults" class="hidden bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">路径验证结果</h2>
+        <div class="space-y-2"></div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 第一大类：基本信息 -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">基本信息</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">模板名称</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ template.name }}</dd>
+                </div>
+                {% if template.description %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">描述</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ template.description }}</dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- 第二大类：测试序列配置 -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">测试序列配置</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">序列类型</dt>
+                    <dd class="mt-1 text-sm text-gray-900">
+                        {{ 'Media（容器格式）' if template.sequence_type == 'media' else 'YUV 420P（原始格式）' }}
+                    </dd>
+                </div>
+
+                {% if template.sequence_type == 'yuv420p' %}
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">宽度</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ template.width }} px</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">高度</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ template.height }} px</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">帧率</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ template.fps }} fps</dd>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">源路径类型</dt>
+                    <dd class="mt-1 text-sm text-gray-900">
+                        {% if template.source_path_type == 'single_file' %}
+                            单文件
+                        {% elif template.source_path_type == 'multiple_files' %}
+                            多文件（逗号分隔）
+                        {% else %}
+                            目录
+                        {% endif %}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">源视频路径</dt>
+                    <dd class="mt-1 text-sm text-gray-900 font-mono break-all bg-gray-50 p-2 rounded">{{ template.source_path }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- 第三大类：编码配置 -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">编码配置</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">编码器类型</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ template.encoder_type }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">编码器路径</dt>
+                    <dd class="mt-1 text-sm text-gray-900 font-mono break-all">
+                        {{ template.encoder_path or '未配置（使用默认可执行文件）' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">编码参数</dt>
+                    <dd class="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded font-mono break-all">
+                        {{ template.encoder_params }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- 第四大类：输出配置 -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">输出配置</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">输出类型</dt>
+                    <dd class="mt-1 text-sm text-gray-900">
+                        {{ '同源视频类型' if template.output_type == 'same_as_source' else 'Raw Stream (h264/h265/h266等)' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">输出目录</dt>
+                    <dd class="mt-1 text-sm text-gray-900 font-mono break-all bg-gray-50 p-2 rounded">{{ template.output_dir }}</dd>
+                </div>
+                <div class="bg-blue-50 border border-blue-200 rounded p-2">
+                    <p class="text-xs text-blue-800">
+                        <strong>输出规则：</strong> 文件名 = 源文件前缀 + "_encode" + 扩展名<br>
+                        <strong>输出目录：</strong> 上方指定的输出目录
+                    </p>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">报告目录</dt>
+                    <dd class="mt-1 text-sm text-gray-900 font-mono break-all">{{ template.metrics_report_dir }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- 第五大类：质量指标配置 -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">质量指标配置</h2>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">是否跳过质量指标计算</dt>
+                    <dd class="mt-1 text-sm">
+                        {% if template.skip_metrics %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            是（已跳过）
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            否（已启用）
+                        </span>
+                        {% endif %}
+                    </dd>
+                </div>
+
+                {% if not template.skip_metrics %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">指标类型</dt>
+                    <dd class="mt-1 flex flex-wrap gap-2">
+                        {% for metric in template.metrics_types %}
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ metric.upper() }}
+                        </span>
+                        {% endfor %}
+                    </dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">操作</h2>
+        <div class="flex space-x-4">
+            <a href="/templates" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition">
+                返回列表
+            </a>
+            <button id="deleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">
+                删除模板
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Execute Modal -->
+<div id="executeModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">执行模板转码</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        源文件（可选，不填则使用模板配置）
+                    </label>
+                    <textarea id="sourceFiles" rows="4"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="每行一个文件路径，例如:&#10;/path/to/video1.mp4&#10;/path/to/video2.mp4"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelExecute" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                        取消
+                    </button>
+                    <button id="confirmExecute" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                        开始执行
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mt-4">删除模板</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">确定要删除此模板吗？此操作无法撤销。</p>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button id="confirmDelete" class="px-4 py-2 bg-red-600 text-white rounded-md w-full hover:bg-red-700">
+                    删除
+                </button>
+                <button id="cancelDelete" class="mt-3 px-4 py-2 bg-white text-gray-800 rounded-md w-full border border-gray-300 hover:bg-gray-100">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p class="mt-2 text-sm text-gray-600">处理中...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const templateId = '{{ template.template_id }}';
+const templatePaths = {
+    source_path: '{{ template.source_path }}',
+    output_dir: '{{ template.output_dir }}',
+    metrics_report_dir: '{{ template.metrics_report_dir }}'
+};
+
+// Validate paths
+document.getElementById('validateBtn').addEventListener('click', async () => {
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const response = await fetch(`/api/templates/${templateId}/validate`);
+        if (!response.ok) throw new Error('Validation failed');
+
+        const result = await response.json();
+        showValidationResults(result);
+    } catch (error) {
+        console.error('Error validating paths:', error);
+        alert('路径验证失败: ' + error.message);
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+});
+
+function showValidationResults(result) {
+    const container = document.getElementById('validationResults');
+    const content = container.querySelector('.space-y-2');
+
+    content.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 ${result.source_exists ? 'text-green-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${result.source_exists ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}"></path>
+            </svg>
+            <span class="text-sm">
+                源路径: ${result.source_exists ? '存在' : '不存在'}
+                ${!result.source_exists ? '<br><code class="text-xs bg-gray-100 px-1 rounded">' + templatePaths.source_path + '</code>' : ''}
+            </span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 ${result.output_dir_writable ? 'text-green-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${result.output_dir_writable ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}"></path>
+            </svg>
+            <span class="text-sm">
+                输出目录: ${result.output_dir_writable ? '可写' : '不可写'}
+                ${!result.output_dir_writable ? '<br><code class="text-xs bg-gray-100 px-1 rounded">' + templatePaths.output_dir + '</code>' : ''}
+            </span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 ${result.metrics_dir_writable ? 'text-green-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${result.metrics_dir_writable ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'}"></path>
+            </svg>
+            <span class="text-sm">
+                报告目录: ${result.metrics_dir_writable ? '可写' : '不可写'}
+                ${!result.metrics_dir_writable ? '<br><code class="text-xs bg-gray-100 px-1 rounded">' + templatePaths.metrics_report_dir + '</code>' : ''}
+            </span>
+        </div>
+        <div class="mt-4 p-3 rounded ${result.all_valid ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}">
+            <p class="text-sm font-medium">${result.all_valid ? '✓ 所有路径验证通过' : '✗ 部分路径验证失败'}</p>
+        </div>
+    `;
+
+    container.classList.remove('hidden');
+}
+
+// Execute template
+document.getElementById('executeBtn').addEventListener('click', () => {
+    document.getElementById('executeModal').classList.remove('hidden');
+});
+
+document.getElementById('cancelExecute').addEventListener('click', () => {
+    document.getElementById('executeModal').classList.add('hidden');
+});
+
+document.getElementById('confirmExecute').addEventListener('click', async () => {
+    const sourceFilesText = document.getElementById('sourceFiles').value.trim();
+    const sourceFiles = sourceFilesText ? sourceFilesText.split('\n').filter(f => f.trim()) : null;
+
+    document.getElementById('executeModal').classList.add('hidden');
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const response = await fetch(`/api/templates/${templateId}/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_files: sourceFiles })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Execution failed');
+        }
+
+        const result = await response.json();
+        alert(`转码完成！\n成功: ${result.successful}\n失败: ${result.failed}`);
+    } catch (error) {
+        console.error('Error executing template:', error);
+        alert('执行转码失败: ' + error.message);
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+});
+
+// Delete template
+document.getElementById('deleteBtn').addEventListener('click', () => {
+    document.getElementById('deleteModal').classList.remove('hidden');
+});
+
+document.getElementById('cancelDelete').addEventListener('click', () => {
+    document.getElementById('deleteModal').classList.add('hidden');
+});
+
+document.getElementById('confirmDelete').addEventListener('click', async () => {
+    document.getElementById('deleteModal').classList.add('hidden');
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const response = await fetch(`/api/templates/${templateId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to delete template');
+
+        window.location.href = '/templates';
+    } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('删除模板失败: ' + error.message);
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+});
+
+// Close modals on outside click
+document.getElementById('executeModal').addEventListener('click', (e) => {
+    if (e.target.id === 'executeModal') {
+        document.getElementById('executeModal').classList.add('hidden');
+    }
+});
+
+document.getElementById('deleteModal').addEventListener('click', (e) => {
+    if (e.target.id === 'deleteModal') {
+        document.getElementById('deleteModal').classList.add('hidden');
+    }
+});
+</script>
+{% endblock %}

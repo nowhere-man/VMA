@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - VQMR{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-10">
+    <div class="text-center space-y-3">
+        <h1 class="text-3xl font-bold text-gray-900">视频质量指标分析</h1>
+        <p class="text-gray-600">请选择需要的操作以开始质量分析或管理转码模板</p>
+    </div>
+
+
+    <!-- 第一行：质量分析、指标对比、模板管理 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <button id="qualityAnalysisBtn" type="button"
+            class="group flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-8 text-white shadow-md transition hover:from-blue-600 hover:to-blue-700 hover:shadow-lg focus:outline-none h-48">
+            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h4l3 8 4-16 3 8h4" />
+                </svg>
+            </div>
+            <span class="text-xl font-semibold">质量分析</span>
+            <span class="mt-2 text-sm text-blue-100">先选择一个转码模板再开始分析</span>
+        </button>
+
+        <a href="/templates/compare" class="group flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 p-8 text-white shadow-md transition hover:from-cyan-600 hover:to-cyan-700 hover:shadow-lg h-48">
+            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6M5 5h14a2 2 0 012 2v5.5m-2.5 9.5L21 21l-2.5-2.5m0 0A2.5 2.5 0 1116 16a2.5 2.5 0 012.5 2.5z" />
+                </svg>
+            </div>
+            <span class="text-xl font-semibold">指标对比</span>
+            <span class="mt-2 text-sm text-cyan-100">选择两个模板对比性能与质量</span>
+        </a>
+
+        <a href="/templates" class="group flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-8 text-white shadow-md transition hover:from-purple-600 hover:to-purple-700 hover:shadow-lg h-48">
+            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+            </div>
+            <span class="text-xl font-semibold">模板管理</span>
+            <span class="mt-2 text-sm text-purple-100">创建和维护转码模板</span>
+        </a>
+    </div>
+
+    <!-- 分割线 -->
+    <div class="border-t border-gray-200"></div>
+
+    <!-- 第二行：报告列表、任务列表 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <a href="http://localhost:8501" target="_blank" class="group flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-8 text-white shadow-md transition hover:from-green-600 hover:to-green-700 hover:shadow-lg h-48">
+            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <span class="text-xl font-semibold">报告列表</span>
+            <span class="mt-2 text-sm text-green-100">查看所有质量分析报告</span>
+        </a>
+
+        <a href="/jobs" class="group flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-gray-700 to-gray-800 p-8 text-white shadow-md transition hover:from-gray-800 hover:to-black hover:shadow-lg h-48">
+            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+            </div>
+            <span class="text-xl font-semibold">任务列表</span>
+            <span class="mt-2 text-sm text-gray-200">查看和跟踪所有任务状态</span>
+        </a>
+    </div>
+</div>
+
+
+<!-- 模板选择弹窗 -->
+<div id="templateModal" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-gray-600/60 p-4">
+    <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900">选择转码模板</h2>
+                <p class="mt-1 text-sm text-gray-500">请选择一个模板来开始质量分析</p>
+            </div>
+            <button id="closeTemplateModal" type="button" class="text-gray-400 hover:text-gray-600">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="mt-4 space-y-4">
+            <div id="templateLoading" class="flex items-center space-x-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-600 hidden">
+                <svg class="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m6.364 1.636l-2.121 2.121M21 12h-3m-1.636 6.364l-2.121-2.121M12 21v-3m-6.364-1.636l2.121-2.121M3 12h3m1.636-6.364l2.121 2.121" />
+                </svg>
+                <span>正在加载模板列表...</span>
+            </div>
+
+            <div id="templateEmpty" class="hidden rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+                当前没有可用的转码模板，请创建一个新的模板。
+            </div>
+
+            <div id="templateSelectWrapper" class="space-y-3 hidden">
+                <label for="templateSelect" class="text-sm font-medium text-gray-700">转码模板</label>
+                <select id="templateSelect" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </select>
+                <div id="templateInfo" class="hidden rounded-lg bg-gray-50 p-3 text-sm text-gray-600"></div>
+            </div>
+        </div>
+
+        <div class="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <a id="createTemplateBtn" href="/templates/new" class="inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
+                创建新模板
+            </a>
+            <div class="flex justify-end gap-3">
+                <button id="cancelTemplateSelection" type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">取消</button>
+                <button id="confirmTemplateSelection" type="button" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300">开始分析</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const qualityBtn = document.getElementById('qualityAnalysisBtn');
+const templateModal = document.getElementById('templateModal');
+const templateSelect = document.getElementById('templateSelect');
+const templateInfo = document.getElementById('templateInfo');
+const templateLoading = document.getElementById('templateLoading');
+const templateEmpty = document.getElementById('templateEmpty');
+const templateSelectWrapper = document.getElementById('templateSelectWrapper');
+const closeModalBtn = document.getElementById('closeTemplateModal');
+const cancelBtn = document.getElementById('cancelTemplateSelection');
+const confirmBtn = document.getElementById('confirmTemplateSelection');
+let templatesCache = [];
+
+function toggleTemplateModal(open) {
+    if (open) {
+        templateModal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    } else {
+        templateModal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+}
+
+function setModalState(state) {
+    templateLoading.classList.toggle('hidden', state !== 'loading');
+    templateEmpty.classList.toggle('hidden', state !== 'empty');
+    templateSelectWrapper.classList.toggle('hidden', state !== 'ready');
+    confirmBtn.disabled = state !== 'ready' || !templateSelect.value;
+}
+
+function resetTemplateModal() {
+    templatesCache = [];
+    templateSelect.innerHTML = '';
+    templateInfo.innerHTML = '';
+    templateInfo.classList.add('hidden');
+    setModalState('loading');
+}
+
+function renderTemplateOptions() {
+    templateSelect.innerHTML = '';
+
+    templatesCache.forEach((tpl, index) => {
+        const option = document.createElement('option');
+        option.value = tpl.template_id;
+        option.textContent = tpl.name || tpl.template_id;
+        if (index === 0) {
+            option.selected = true;
+        }
+        templateSelect.appendChild(option);
+    });
+
+    updateTemplateInfo();
+    confirmBtn.disabled = !templateSelect.value;
+}
+
+function updateTemplateInfo() {
+    const selectedId = templateSelect.value;
+    const tpl = templatesCache.find((item) => item.template_id === selectedId);
+
+    if (!tpl) {
+        templateInfo.innerHTML = '';
+        templateInfo.classList.add('hidden');
+        return;
+    }
+
+    const description = tpl.description ? tpl.description : '该模板未填写描述';
+    templateInfo.innerHTML = `
+        <div class="space-y-1">
+            <p><span class="font-medium text-gray-700">描述：</span>${escapeHtml(description)}</p>
+            <p class="text-sm text-gray-500">编码器类型：${tpl.encoder_type.toUpperCase()}</p>
+            <p class="text-xs text-gray-400">模板 ID：${tpl.template_id}</p>
+        </div>
+    `;
+    templateInfo.classList.remove('hidden');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+qualityBtn.addEventListener('click', async () => {
+    const originalContent = qualityBtn.innerHTML;
+    qualityBtn.disabled = true;
+    qualityBtn.innerHTML = '<span class="flex items-center"><svg class="mr-2 h-5 w-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m6.364 1.636l-2.121 2.121M21 12h-3m-1.636 6.364l-2.121-2.121M12 21v-3m-6.364-1.636l2.121-2.121M3 12h3m1.636-6.364l2.121 2.121" /></svg>加载模板...</span>';
+
+    resetTemplateModal();
+    toggleTemplateModal(true);
+
+    try {
+        const response = await fetch('/api/templates');
+        if (!response.ok) {
+            throw new Error('无法获取模板列表');
+        }
+
+        templatesCache = await response.json();
+
+        if (!templatesCache.length) {
+            setModalState('empty');
+            return;
+        }
+
+        renderTemplateOptions();
+        setModalState('ready');
+    } catch (error) {
+        console.error('加载模板失败:', error);
+        alert(error.message || '加载模板失败，请稍后重试');
+        toggleTemplateModal(false);
+    } finally {
+        qualityBtn.disabled = false;
+        qualityBtn.innerHTML = originalContent;
+    }
+});
+
+templateSelect.addEventListener('change', () => {
+    updateTemplateInfo();
+    confirmBtn.disabled = !templateSelect.value;
+});
+
+confirmBtn.addEventListener('click', async () => {
+    const selectedId = templateSelect.value;
+    if (!selectedId) {
+        return;
+    }
+
+    // 禁用按钮并显示加载状态
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<span class="flex items-center"><svg class="mr-2 h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m6.364 1.636l-2.121 2.121M21 12h-3" /></svg>创建中...</span>';
+
+    try {
+        // 调用执行API
+        const response = await fetch(`/api/templates/${selectedId}/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_files: null })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '创建任务失败');
+        }
+
+        const result = await response.json();
+        toggleTemplateModal(false);
+
+        // 显示任务创建成功
+        alert(`转码任务已创建！\n任务ID: ${result.job_id}\n${result.message}`);
+
+        // 跳转到任务列表页面
+        window.location.href = '/jobs';
+    } catch (error) {
+        console.error('创建任务失败:', error);
+        alert('创建任务失败: ' + error.message);
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '开始分析';
+    }
+});
+
+[closeModalBtn, cancelBtn].forEach((btn) => {
+    btn.addEventListener('click', () => {
+        toggleTemplateModal(false);
+        resetTemplateModal();
+    });
+});
+
+templateModal.addEventListener('click', (event) => {
+    if (event.target === templateModal) {
+        toggleTemplateModal(false);
+        resetTemplateModal();
+    }
+});
+</script>
+{% endblock %}

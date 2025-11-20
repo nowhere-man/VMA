@@ -9,6 +9,10 @@ Web application for video encoding quality analysis using FFmpeg metrics (PSNR, 
 - **Flexible Modes**:
   - Single-file mode: Upload one video, system applies preset encoding
   - Dual-file mode: Upload reference and distorted videos for comparison
+- **Encoding Templates**: Create, manage, and reuse encoding configurations
+  - Support for multiple encoders (FFmpeg, x264, x265, VVenC)
+  - Batch processing with configurable parallelism
+  - Automatic quality metrics calculation
 - **RESTful API**: JSON endpoints for programmatic access
 - **Server-Side Rendering**: Jinja2 templates with Tailwind CSS
 
@@ -37,15 +41,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Configure environment variables:
-```bash
-cp .env.example .env
-# Edit .env to customize settings
-```
-
 ## Configuration
 
-Configuration is managed via environment variables (see `.env.example`):
+Configuration is managed via environment variables (see `.env`):
 
 - `HOST`: Server host (default: 0.0.0.0)
 - `PORT`: Server port (default: 8080)
@@ -71,19 +69,19 @@ The easiest way to run the application:
 Run the application with auto-reload:
 
 ```bash
-./venv/bin/uvicorn backend.src.main:app --reload --host 0.0.0.0 --port 8080
+./venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 Or using Python directly:
 
 ```bash
-./venv/bin/python -m backend.src.main
+./venv/bin/python -m src.main
 ```
 
 ### Production Mode
 
 ```bash
-./venv/bin/uvicorn backend.src.main:app --host 0.0.0.0 --port 8080 --workers 4
+./venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8080 --workers 4
 ```
 
 ### Access the Application
@@ -98,46 +96,43 @@ Run tests with pytest:
 
 ```bash
 # Run all tests
-pytest
+PYTHONPATH=. ./venv/bin/pytest
 
 # Run with coverage
-pytest --cov=backend/src --cov-report=html
+PYTHONPATH=. ./venv/bin/pytest --cov=. --cov-report=html
 
 # Run specific test types
-pytest -m unit        # Unit tests only
-pytest -m integration # Integration tests only
-pytest -m contract    # Contract tests only
+PYTHONPATH=. ./venv/bin/pytest -m unit        # Unit tests only
+PYTHONPATH=. ./venv/bin/pytest -m integration # Integration tests only
+PYTHONPATH=. ./venv/bin/pytest -m contract    # Contract tests only
 
 # Run tests for specific user story
-pytest -m US1         # User Story 1 tests
+PYTHONPATH=. ./venv/bin/pytest -m US1         # User Story 1 tests
 ```
 
 ## Project Structure
 
 ```
 VQMR/
-├── backend/
-│   ├── src/
-│   │   ├── api/          # API endpoints
-│   │   ├── models.py     # Data models
-│   │   ├── services/     # Business logic
-│   │   ├── templates/    # Jinja2 templates
-│   │   ├── utils/        # Utility functions
-│   │   ├── config.py     # Configuration
-│   │   └── main.py       # Application entry point
-│   └── tests/
-│       ├── contract/     # API contract tests
-│       ├── integration/  # Integration tests
-│       └── unit/         # Unit tests
-├── frontend/
-│   └── static/
-│       ├── js/           # JavaScript files
-│       └── css/          # CSS files
-├── jobs/                 # Task storage (auto-created)
-├── docs/                 # Documentation
-├── .env.example          # Environment template
-├── requirements.txt      # Python dependencies
-├── pyproject.toml        # Project configuration
+├── src/              # Source code
+│   ├── api/          # API endpoints
+│   ├── services/     # Business logic
+│   ├── utils/        # Utility functions
+│   ├── templates/    # Jinja2 templates
+│   ├── static/       # Static files (CSS/JS)
+│   ├── models.py     # Data models
+│   ├── schemas.py    # Pydantic schemas
+│   ├── config.py     # Configuration
+│   └── main.py       # Application entry point
+├── tests/
+│   ├── contract/     # API contract tests
+│   ├── integration/  # Integration tests
+│   └── unit/         # Unit tests
+├── jobs/             # Task storage (auto-created)
+├── docs/             # Documentation
+├── .env.example      # Environment template
+├── requirements.txt  # Python dependencies
+├── pyproject.toml    # Project configuration
 └── README.md
 ```
 
@@ -178,19 +173,54 @@ GET /api/jobs?status=completed&limit=10
 GET /api/jobs/{job_id}/metrics
 ```
 
+### Encoding Templates
+
+#### Create Template
+```bash
+POST /api/templates
+Content-Type: application/json
+
+{
+  "name": "H264 High Quality",
+  "encoder_type": "ffmpeg",
+  "encoder_params": "-c:v libx264 -preset slow -crf 18",
+  "source_path": "/videos/input/*.mp4",
+  "output_dir": "/videos/output",
+  "metrics_report_dir": "/videos/reports",
+  "parallel_jobs": 4
+}
+```
+
+#### List Templates
+```bash
+GET /api/templates?encoder_type=ffmpeg&limit=10
+```
+
+#### Execute Template
+```bash
+POST /api/templates/{template_id}/execute
+Content-Type: application/json
+
+{
+  "source_files": ["/path/to/video1.mp4", "/path/to/video2.mp4"]
+}
+```
+
+For more details, see [Encoding Templates Documentation](specs/001-video-quality-metrics-report/encoding-templates.md)
+
 ## Development
 
 ### Code Quality
 
 ```bash
 # Format code
-black backend/
+black src/
 
 # Type checking
-mypy backend/src
+mypy src/
 
 # Linting
-flake8 backend/
+flake8 src/
 ```
 
 ### Adding New Features

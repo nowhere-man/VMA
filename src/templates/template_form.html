@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑模板' if template_id else '创建模板' }} - VQMR{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">{{ '编辑模板' if template_id else '创建新模板' }}</h1>
+        <p class="mt-1 text-sm text-gray-600">
+            配置视频转码参数，支持批量处理和质量指标计算
+        </p>
+    </div>
+
+    <!-- Form -->
+    <form id="templateForm" class="bg-white rounded-lg shadow-sm p-6 space-y-6">
+        <!-- 第一大类：基本信息 -->
+        <div class="border-b border-gray-200 pb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">基本信息</h2>
+
+            <div class="space-y-4">
+                <!-- Name -->
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+                        模板名称 <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="name" name="name" required maxlength="100"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="例如: H264高质量转码">
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+                        描述
+                    </label>
+                    <textarea id="description" name="description" rows="3" maxlength="500"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="简要描述此模板的用途"></textarea>
+                    <p class="mt-1 text-xs text-gray-500">最多 500 字符</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第二大类：测试序列配置 -->
+        <div class="border-b border-gray-200 pb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">测试序列配置</h2>
+
+            <div class="space-y-4">
+                <!-- Sequence Type -->
+                <div>
+                    <label for="sequence_type" class="block text-sm font-medium text-gray-700 mb-1">
+                        序列类型 <span class="text-red-500">*</span>
+                    </label>
+                    <select id="sequence_type" name="sequence_type" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="media">Media（容器格式：mp4、flv等）</option>
+                        <option value="yuv420p" selected>YUV 420P（原始格式）</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">
+                        <strong>Media:</strong> 容器格式，宽、高、fps 可从文件中获取<br>
+                        <strong>YUV 420P:</strong> 原始格式，必须手动指定宽、高、fps
+                    </p>
+                </div>
+
+                <!-- YUV Parameters (shown only for YUV 420P) -->
+                <div id="yuvParamsSection" class="space-y-4">
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                        <p class="text-sm text-yellow-800">
+                            <strong>注意：</strong>YUV 420P 类型必须指定以下参数
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label for="width" class="block text-sm font-medium text-gray-700 mb-1">
+                                宽度 <span class="text-red-500" id="width_required">*</span>
+                            </label>
+                            <input type="number" id="width" name="width" min="1" required
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="1920">
+                        </div>
+
+                        <div>
+                            <label for="height" class="block text-sm font-medium text-gray-700 mb-1">
+                                高度 <span class="text-red-500" id="height_required">*</span>
+                            </label>
+                            <input type="number" id="height" name="height" min="1" required
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="1080">
+                        </div>
+
+                        <div>
+                            <label for="fps" class="block text-sm font-medium text-gray-700 mb-1">
+                                帧率 <span class="text-red-500" id="fps_required">*</span>
+                            </label>
+                            <input type="number" id="fps" name="fps" min="0.01" step="0.01" required
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="30">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Source Path Type -->
+                <div>
+                    <label for="source_path_type" class="block text-sm font-medium text-gray-700 mb-1">
+                        源路径类型 <span class="text-red-500">*</span>
+                    </label>
+                    <select id="source_path_type" name="source_path_type" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="single_file">单文件</option>
+                        <option value="multiple_files">多文件（逗号分隔）</option>
+                        <option value="directory">目录（转码所有视频）</option>
+                    </select>
+                </div>
+
+                <!-- Source Path -->
+                <div>
+                    <label for="source_path" class="block text-sm font-medium text-gray-700 mb-1">
+                        源视频路径 <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="source_path" name="source_path" rows="3" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="/path/to/video.mp4"></textarea>
+                    <div class="mt-2 bg-gray-50 rounded p-3">
+                        <p class="text-xs font-medium text-gray-700 mb-2" id="source_path_help_title">根据源路径类型:</p>
+                        <div class="space-y-1 text-xs text-gray-600" id="source_path_help_content">
+                            <div><strong>单文件:</strong> <code class="bg-white px-1 py-0.5 rounded">/path/to/video.mp4</code></div>
+                            <div><strong>多文件:</strong> <code class="bg-white px-1 py-0.5 rounded">/path/video1.mp4,/path/video2.mp4</code></div>
+                            <div><strong>目录:</strong> <code class="bg-white px-1 py-0.5 rounded">/path/to/videos/</code></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第三大类：编码配置 -->
+        <div class="border-b border-gray-200 pb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">编码配置</h2>
+
+            <div class="space-y-4">
+                <!-- Encoder Type -->
+                <div>
+                    <label for="encoder_type" class="block text-sm font-medium text-gray-700 mb-1">
+                        编码器类型 <span class="text-red-500">*</span>
+                    </label>
+                    <select id="encoder_type" name="encoder_type" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">请选择</option>
+                        <option value="ffmpeg">FFmpeg</option>
+                        <option value="x264">x264</option>
+                        <option value="x265">x265</option>
+                        <option value="vvenc">VVenC</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">使用枚举类型，便于扩展</p>
+                </div>
+
+                <!-- Encoder Path -->
+                <div>
+                    <label for="encoder_path" class="block text-sm font-medium text-gray-700 mb-1">
+                        编码器绝对路径
+                    </label>
+                    <input type="text" id="encoder_path" name="encoder_path" maxlength="500"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="例如: /usr/local/bin/ffmpeg">
+                    <p class="mt-1 text-xs text-gray-500">留空则使用默认命令，例如 <code>ffmpeg</code>、<code>x264</code> 等。</p>
+                </div>
+
+                <!-- Encoder Params -->
+                <div>
+                    <label for="encoder_params" class="block text-sm font-medium text-gray-700 mb-1">
+                        编码参数 <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="encoder_params" name="encoder_params" rows="3" required maxlength="2000"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="例如: -c:v libx264 -preset slow -crf 18"></textarea>
+                    <p class="mt-1 text-xs text-gray-500">参数字符串直接传给编码器，最多 2000 字符</p>
+
+                    <!-- Parameter Examples -->
+                    <div class="mt-2 bg-gray-50 rounded p-3">
+                        <p class="text-xs font-medium text-gray-700 mb-2">参数示例:</p>
+                        <div class="space-y-1 text-xs text-gray-600">
+                            <div><strong>FFmpeg (H.264):</strong> <code class="bg-white px-1 py-0.5 rounded">-c:v libx264 -preset medium -crf 23</code></div>
+                            <div><strong>FFmpeg (H.265):</strong> <code class="bg-white px-1 py-0.5 rounded">-c:v libx265 -preset medium -crf 28</code></div>
+                            <div><strong>x264:</strong> <code class="bg-white px-1 py-0.5 rounded">--preset medium --crf 23</code></div>
+                            <div><strong>x265:</strong> <code class="bg-white px-1 py-0.5 rounded">--preset medium --crf 28</code></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第四大类：输出配置 -->
+        <div class="border-b border-gray-200 pb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">输出配置</h2>
+
+            <div class="space-y-4">
+                <!-- Output Type -->
+                <div>
+                    <label for="output_type" class="block text-sm font-medium text-gray-700 mb-1">
+                        输出类型 <span class="text-red-500">*</span>
+                    </label>
+                    <select id="output_type" name="output_type" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="same_as_source">同源视频类型</option>
+                        <option value="raw_stream" selected>Raw Stream (h264/h265/h266等)</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">
+                        <strong>同源视频类型:</strong> 只有当序列类型是 Media 时可选<br>
+                        <strong>Raw Stream:</strong> 输出 h264、h265、h266 等原始流
+                    </p>
+                </div>
+
+                <!-- Output Directory -->
+                <div>
+                    <label for="output_dir" class="block text-sm font-medium text-gray-700 mb-1">
+                        输出目录 <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="output_dir" name="output_dir" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="/path/to/output">
+                    <p class="mt-1 text-xs text-gray-500">保存转码输出的码流文件的目录</p>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <p class="text-sm text-blue-800">
+                        <strong>输出文件规则：</strong>转码后视频文件名 = 源视频前缀 + "_encode" + 扩展名<br>
+                        输出文件保存到上方指定的输出目录中
+                    </p>
+                </div>
+
+                <!-- Metrics Report Dir -->
+                <div>
+                    <label for="metrics_report_dir" class="block text-sm font-medium text-gray-700 mb-1">
+                        报告目录 <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="metrics_report_dir" name="metrics_report_dir" required
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="/path/to/reports">
+                    <p class="mt-1 text-xs text-gray-500">保存 Streamlit 生成的报告的路径</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第五大类：质量指标配置 -->
+        <div class="pb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">质量指标配置</h2>
+
+            <div class="space-y-4">
+                <!-- Skip Metrics -->
+                <div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="skip_metrics" name="skip_metrics"
+                            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        <label for="skip_metrics" class="ml-2 block text-sm font-medium text-gray-700">
+                            跳过质量指标计算
+                        </label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 ml-6">勾选后不进行质量指标计算</p>
+                </div>
+
+                <!-- Metrics Types (shown only if skip_metrics is not checked) -->
+                <div id="metricsTypesSection">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        指标类型 <span class="text-red-500" id="metrics_types_required">*</span>
+                    </label>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="metric_psnr" name="metrics_types" value="psnr" checked
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <label for="metric_psnr" class="ml-2 block text-sm text-gray-700">PSNR（峰值信噪比）</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="metric_ssim" name="metrics_types" value="ssim" checked
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <label for="metric_ssim" class="ml-2 block text-sm text-gray-700">SSIM（结构相似性）</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="metric_vmaf" name="metrics_types" value="vmaf" checked
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            <label for="metric_vmaf" class="ml-2 block text-sm text-gray-700">VMAF（视频多方法评估）</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+            <a href="/templates" class="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition">
+                取消
+            </a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
+                {{ '保存更改' if template_id else '创建模板' }}
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p class="mt-2 text-sm text-gray-600">处理中...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const isEditMode = {{ 'true' if template_id else 'false' }};
+const templateId = {{ template_id|tojson if template_id else 'null' }};
+
+// Update UI based on sequence type
+function updateSequenceTypeUI() {
+    const sequenceType = document.getElementById('sequence_type').value;
+    const yuvParamsSection = document.getElementById('yuvParamsSection');
+    const outputType = document.getElementById('output_type');
+
+    if (sequenceType === 'yuv420p') {
+        yuvParamsSection.classList.remove('hidden');
+        document.getElementById('width').required = true;
+        document.getElementById('height').required = true;
+        document.getElementById('fps').required = true;
+
+        // YUV类型不能选择"同源视频类型"
+        if (outputType.value === 'same_as_source') {
+            outputType.value = 'raw_stream';
+        }
+        // 禁用"同源视频类型"选项
+        outputType.querySelector('option[value="same_as_source"]').disabled = true;
+    } else {
+        yuvParamsSection.classList.add('hidden');
+        document.getElementById('width').required = false;
+        document.getElementById('height').required = false;
+        document.getElementById('fps').required = false;
+
+        // 启用"同源视频类型"选项
+        outputType.querySelector('option[value="same_as_source"]').disabled = false;
+    }
+}
+
+// Update UI based on skip_metrics checkbox
+function updateSkipMetricsUI() {
+    const skipMetrics = document.getElementById('skip_metrics').checked;
+    const metricsTypesSection = document.getElementById('metricsTypesSection');
+    const metricsCheckboxes = document.querySelectorAll('input[name="metrics_types"]');
+
+    if (skipMetrics) {
+        metricsTypesSection.classList.add('hidden');
+        metricsCheckboxes.forEach(cb => cb.required = false);
+    } else {
+        metricsTypesSection.classList.remove('hidden');
+        // At least one metric must be checked
+        const atLeastOneChecked = Array.from(metricsCheckboxes).some(cb => cb.checked);
+        if (!atLeastOneChecked) {
+            document.getElementById('metric_psnr').checked = true;
+        }
+    }
+}
+
+// Update source path help text based on source_path_type
+function updateSourcePathHelp() {
+    const pathType = document.getElementById('source_path_type').value;
+    const helpContent = document.getElementById('source_path_help_content');
+
+    if (pathType === 'single_file') {
+        helpContent.innerHTML = '<div><strong>单文件:</strong> <code class="bg-white px-1 py-0.5 rounded">/path/to/video.mp4</code></div>';
+    } else if (pathType === 'multiple_files') {
+        helpContent.innerHTML = '<div><strong>多文件（逗号分隔）:</strong> <code class="bg-white px-1 py-0.5 rounded">/path/video1.mp4,/path/video2.mp4,/path/video3.mp4</code></div>';
+    } else if (pathType === 'directory') {
+        helpContent.innerHTML = '<div><strong>目录:</strong> <code class="bg-white px-1 py-0.5 rounded">/path/to/videos/</code><br>将转码目录下所有视频文件</div>';
+    }
+}
+
+// Load template data for edit mode
+async function loadTemplate() {
+    if (!isEditMode || !templateId) return;
+
+    try {
+        const response = await fetch(`/api/templates/${templateId}`);
+        if (!response.ok) throw new Error('Failed to load template');
+
+        const template = await response.json();
+        populateForm(template);
+    } catch (error) {
+        console.error('Error loading template:', error);
+        alert('加载模板失败: ' + error.message);
+    }
+}
+
+// Populate form with template data
+function populateForm(template) {
+    document.getElementById('name').value = template.name || '';
+    document.getElementById('description').value = template.description || '';
+    document.getElementById('sequence_type').value = template.sequence_type || 'yuv420p';
+    document.getElementById('width').value = template.width || '';
+    document.getElementById('height').value = template.height || '';
+    document.getElementById('fps').value = template.fps || '';
+    document.getElementById('source_path_type').value = template.source_path_type || 'single_file';
+    document.getElementById('source_path').value = template.source_path || '';
+    document.getElementById('encoder_type').value = template.encoder_type || '';
+    document.getElementById('encoder_path').value = template.encoder_path || '';
+    document.getElementById('encoder_params').value = template.encoder_params || '';
+    document.getElementById('output_type').value = template.output_type || 'raw_stream';
+    document.getElementById('output_dir').value = template.output_dir || '';
+    document.getElementById('metrics_report_dir').value = template.metrics_report_dir || '';
+    document.getElementById('skip_metrics').checked = template.skip_metrics || false;
+
+    // Set metrics types
+    document.querySelectorAll('input[name="metrics_types"]').forEach(checkbox => {
+        checkbox.checked = template.metrics_types && template.metrics_types.includes(checkbox.value);
+    });
+
+    // Update UI
+    updateSequenceTypeUI();
+    updateSkipMetricsUI();
+    updateSourcePathHelp();
+}
+
+// Handle form submission
+document.getElementById('templateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Collect form data
+    const sequenceType = document.getElementById('sequence_type').value;
+    const skipMetrics = document.getElementById('skip_metrics').checked;
+
+    const formData = {
+        name: document.getElementById('name').value,
+        description: document.getElementById('description').value,
+        sequence_type: sequenceType,
+        source_path_type: document.getElementById('source_path_type').value,
+        source_path: document.getElementById('source_path').value,
+        encoder_type: document.getElementById('encoder_type').value,
+        encoder_params: document.getElementById('encoder_params').value,
+        output_type: document.getElementById('output_type').value,
+        output_dir: document.getElementById('output_dir').value,
+        metrics_report_dir: document.getElementById('metrics_report_dir').value,
+        skip_metrics: skipMetrics
+    };
+
+    // Add YUV parameters if needed
+    if (sequenceType === 'yuv420p') {
+        formData.width = parseInt(document.getElementById('width').value);
+        formData.height = parseInt(document.getElementById('height').value);
+        formData.fps = parseFloat(document.getElementById('fps').value);
+    }
+
+    // Add encoder path if provided
+    const encoderPath = document.getElementById('encoder_path').value.trim();
+    if (encoderPath) {
+        formData.encoder_path = encoderPath;
+    } else if (isEditMode) {
+        formData.encoder_path = null;
+    }
+
+    // Collect metrics types if not skipping
+    if (!skipMetrics) {
+        const metricsTypes = [];
+        document.querySelectorAll('input[name="metrics_types"]:checked').forEach(checkbox => {
+            metricsTypes.push(checkbox.value);
+        });
+
+        if (metricsTypes.length === 0) {
+            alert('请至少选择一个质量指标类型');
+            return;
+        }
+
+        formData.metrics_types = metricsTypes;
+    } else {
+        formData.metrics_types = [];
+    }
+
+    // Validate output_type for YUV
+    if (sequenceType === 'yuv420p' && formData.output_type === 'same_as_source') {
+        alert('YUV 420P 类型不能选择"同源视频类型"');
+        return;
+    }
+
+    // Show loading
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const url = isEditMode ? `/api/templates/${templateId}` : '/api/templates';
+        const method = isEditMode ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to save template');
+        }
+
+        const result = await response.json();
+
+        // Redirect to template detail page
+        window.location.href = `/templates/${result.template_id || templateId}`;
+    } catch (error) {
+        console.error('Error saving template:', error);
+        alert('保存模板失败: ' + error.message);
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+});
+
+// Event listeners
+document.getElementById('sequence_type').addEventListener('change', updateSequenceTypeUI);
+document.getElementById('skip_metrics').addEventListener('change', updateSkipMetricsUI);
+document.getElementById('source_path_type').addEventListener('change', updateSourcePathHelp);
+
+// Initialize UI
+updateSequenceTypeUI();
+updateSkipMetricsUI();
+updateSourcePathHelp();
+
+// Load template data on page load (edit mode)
+if (isEditMode) {
+    loadTemplate();
+}
+</script>
+{% endblock %}

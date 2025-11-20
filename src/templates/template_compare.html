@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+
+{% block title %}模板指标对比 - VQMR{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8">
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h1 class="text-2xl font-bold text-gray-900">模板指标对比</h1>
+        <p class="mt-2 text-sm text-gray-600">选择两个转码模板，系统将自动执行并对比转码速度、CPU 占用、质量指标及码率差异。</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm p-6 space-y-4">
+        <form id="compareForm" class="space-y-4">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-5 md:items-end">
+                <div class="md:col-span-2">
+                    <label for="templateA" class="block text-sm font-medium text-gray-700">模板 A</label>
+                    <select id="templateA" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                </div>
+
+                <div class="flex justify-center md:col-span-1">
+                    <button id="swapBtn" type="button" class="mt-6 inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 7l4-4m-4 4l4 4m12 6H4m16 0l-4 4m4-4l-4-4" />
+                        </svg>
+                        <span class="ml-2">交换</span>
+                    </button>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label for="templateB" class="block text-sm font-medium text-gray-700">模板 B</label>
+                    <select id="templateB" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs text-gray-500">提示：模板需使用相同的编码器及指标设置，源文件也必须一致。</p>
+                <button id="compareBtn" type="submit" class="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    开始对比
+                </button>
+            </div>
+        </form>
+
+        <div id="loadingState" class="hidden rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-600">
+            正在执行模板并收集指标，请稍候...
+        </div>
+
+        <div id="errorBox" class="hidden rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+    </div>
+
+    <div id="resultSection" class="hidden space-y-6">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">模板 A</h2>
+                    <p class="mt-1 text-sm text-gray-600"><span class="font-medium">名称：</span><span id="templateAName"></span></p>
+                    <p class="mt-1 text-sm text-gray-600"><span class="font-medium">编码器：</span><span id="templateAEncoder"></span></p>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">模板 B</h2>
+                    <p class="mt-1 text-sm text-gray-600"><span class="font-medium">名称：</span><span id="templateBName"></span></p>
+                    <p class="mt-1 text-sm text-gray-600"><span class="font-medium">编码器：</span><span id="templateBEncoder"></span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="bg-white rounded-lg shadow-sm p-5">
+                <h3 class="text-sm font-medium text-gray-500">平均转码帧率 (fps)</h3>
+                <div class="mt-3 flex items-baseline space-x-4">
+                    <div>
+                        <div class="text-xs text-gray-500">模板 A</div>
+                        <div id="avgSpeedA" class="text-xl font-semibold text-gray-900">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500">模板 B</div>
+                        <div id="avgSpeedB" class="text-xl font-semibold text-gray-900">-</div>
+                    </div>
+                </div>
+                <p id="avgSpeedDelta" class="mt-2 text-sm"></p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm p-5">
+                <h3 class="text-sm font-medium text-gray-500">平均 CPU 占用 (%)</h3>
+                <div class="mt-3 flex items-baseline space-x-4">
+                    <div>
+                        <div class="text-xs text-gray-500">模板 A</div>
+                        <div id="avgCpuA" class="text-xl font-semibold text-gray-900">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500">模板 B</div>
+                        <div id="avgCpuB" class="text-xl font-semibold text-gray-900">-</div>
+                    </div>
+                </div>
+                <p id="avgCpuDelta" class="mt-2 text-sm"></p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm p-5">
+                <h3 class="text-sm font-medium text-gray-500">平均码率 (kbps)</h3>
+                <div class="mt-3 flex items-baseline space-x-4">
+                    <div>
+                        <div class="text-xs text-gray-500">模板 A</div>
+                        <div id="avgBitrateA" class="text-xl font-semibold text-gray-900">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500">模板 B</div>
+                        <div id="avgBitrateB" class="text-xl font-semibold text-gray-900">-</div>
+                    </div>
+                </div>
+                <p id="avgBitrateDelta" class="mt-2 text-sm"></p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">质量指标对比</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">指标</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">模板 A</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">模板 B</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">差值 (B - A)</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">差值 (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="qualityMetricsBody" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">BD-rate 对比 (百分比)</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">指标</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">BD-rate (B 相对 A)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bdRateBody" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+            <p class="mt-3 text-xs text-gray-500">正值表示模板 B 相比模板 A 需要更多码率才能达到同等质量，负值表示性能更优。</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">逐文件性能对比</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">源文件</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">A 耗时 (s)</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">B 耗时 (s)</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">A 帧率</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">B 帧率</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">A CPU (%)</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">B CPU (%)</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">A 码率 (kbps)</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-700">B 码率 (kbps)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="perFileBody" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const templateSelectA = document.getElementById('templateA');
+const templateSelectB = document.getElementById('templateB');
+const swapBtn = document.getElementById('swapBtn');
+const compareForm = document.getElementById('compareForm');
+const compareBtn = document.getElementById('compareBtn');
+const loadingState = document.getElementById('loadingState');
+const errorBox = document.getElementById('errorBox');
+const resultSection = document.getElementById('resultSection');
+
+const templateAName = document.getElementById('templateAName');
+const templateBName = document.getElementById('templateBName');
+const templateAEncoder = document.getElementById('templateAEncoder');
+const templateBEncoder = document.getElementById('templateBEncoder');
+
+const avgSpeedA = document.getElementById('avgSpeedA');
+const avgSpeedB = document.getElementById('avgSpeedB');
+const avgSpeedDelta = document.getElementById('avgSpeedDelta');
+
+const avgCpuA = document.getElementById('avgCpuA');
+const avgCpuB = document.getElementById('avgCpuB');
+const avgCpuDelta = document.getElementById('avgCpuDelta');
+
+const avgBitrateA = document.getElementById('avgBitrateA');
+const avgBitrateB = document.getElementById('avgBitrateB');
+const avgBitrateDelta = document.getElementById('avgBitrateDelta');
+
+const qualityMetricsBody = document.getElementById('qualityMetricsBody');
+const bdRateBody = document.getElementById('bdRateBody');
+const perFileBody = document.getElementById('perFileBody');
+
+let templatesCache = [];
+
+function resetError() {
+    errorBox.classList.add('hidden');
+    errorBox.textContent = '';
+}
+
+function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.remove('hidden');
+}
+
+function setLoading(isLoading) {
+    loadingState.classList.toggle('hidden', !isLoading);
+    compareBtn.disabled = isLoading;
+}
+
+function populateTemplateSelects() {
+    const options = templatesCache
+        .map((tpl) => `<option value="${tpl.template_id}">${escapeHtml(tpl.name || tpl.template_id)}</option>`)
+        .join('');
+
+    templateSelectA.innerHTML = options;
+    templateSelectB.innerHTML = options;
+
+    if (templatesCache.length > 1) {
+        templateSelectB.selectedIndex = 1;
+    }
+}
+
+function formatNumber(value, digits = 2) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+        return '-';
+    }
+    return Number(value).toFixed(digits);
+}
+
+function formatPercent(value, digits = 2) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+        return '-';
+    }
+    return `${Number(value).toFixed(digits)}%`;
+}
+
+function formatDelta(stat) {
+    if (!stat || stat.delta === null || stat.delta === undefined) {
+        return '差值：-';
+    }
+    const percentPart = stat.delta_percent === null || stat.delta_percent === undefined
+        ? ''
+        : ` (${formatPercent(stat.delta_percent)})`;
+    return `差值：${formatNumber(stat.delta, 3)}${percentPart}`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text ?? '';
+    return div.innerHTML;
+}
+
+async function loadTemplates() {
+    try {
+        const response = await fetch('/api/templates');
+        if (!response.ok) {
+            throw new Error('无法获取模板列表');
+        }
+        templatesCache = await response.json();
+
+        if (templatesCache.length < 2) {
+            populateTemplateSelects();
+            compareBtn.disabled = true;
+            showError('至少需要两个模板才能进行对比，请先创建更多模板。');
+            return;
+        }
+
+        populateTemplateSelects();
+    } catch (error) {
+        showError(error.message || '加载模板失败，请稍后再试');
+        compareBtn.disabled = true;
+    }
+}
+
+function swapTemplates() {
+    const temp = templateSelectA.value;
+    templateSelectA.value = templateSelectB.value;
+    templateSelectB.value = temp;
+}
+
+swapBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (templatesCache.length < 2) return;
+    swapTemplates();
+});
+
+compareForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    resetError();
+
+    const templateAId = templateSelectA.value;
+    const templateBId = templateSelectB.value;
+
+    if (!templateAId || !templateBId) {
+        showError('请选择两个模板。');
+        return;
+    }
+
+    if (templateAId === templateBId) {
+        showError('不可选择同一个模板，请重新选择。');
+        return;
+    }
+
+    setLoading(true);
+    resultSection.classList.add('hidden');
+
+    try {
+        const response = await fetch('/api/templates/compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ template_a: templateAId, template_b: templateBId }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || '对比失败');
+        }
+
+        const data = await response.json();
+        
+        // Redirect to job detail page
+        if (data.job_id) {
+            window.location.href = `/jobs/${data.job_id}`;
+        } else {
+            showError('对比任务创建失败');
+        }
+    } catch (error) {
+        showError(error.message || '对比失败，请稍后再试');
+        setLoading(false);
+    }
+});
+
+function renderResult(data) {
+    templateAName.textContent = data.template_a.template_name;
+    templateBName.textContent = data.template_b.template_name;
+    templateAEncoder.textContent = data.template_a.results[0]?.encoder_type?.toUpperCase?.() ?? '-';
+    templateBEncoder.textContent = data.template_b.results[0]?.encoder_type?.toUpperCase?.() ?? '-';
+
+    const speedStat = data.comparisons.speed_fps;
+    avgSpeedA.textContent = formatNumber(speedStat.template_a);
+    avgSpeedB.textContent = formatNumber(speedStat.template_b);
+    avgSpeedDelta.textContent = formatDelta(speedStat);
+
+    const cpuStat = data.comparisons.cpu_percent;
+    avgCpuA.textContent = formatPercent(cpuStat.template_a);
+    avgCpuB.textContent = formatPercent(cpuStat.template_b);
+    if (cpuStat.delta !== null && cpuStat.delta !== undefined) {
+        avgCpuDelta.textContent = `差值：${formatPercent(cpuStat.delta)}${cpuStat.delta_percent == null ? '' : ` (${formatPercent(cpuStat.delta_percent)})`}`;
+    } else {
+        avgCpuDelta.textContent = '差值：-';
+    }
+
+    const bitrateStat = data.comparisons.bitrate;
+    const bitrateFactor = 1000;
+    avgBitrateA.textContent = bitrateStat.template_a == null ? '-' : formatNumber(bitrateStat.template_a / bitrateFactor);
+    avgBitrateB.textContent = bitrateStat.template_b == null ? '-' : formatNumber(bitrateStat.template_b / bitrateFactor);
+    if (bitrateStat.delta !== null && bitrateStat.delta !== undefined) {
+        const deltaDisplay = formatNumber(bitrateStat.delta / bitrateFactor);
+        const percentDisplay = bitrateStat.delta_percent == null ? '' : ` (${formatPercent(bitrateStat.delta_percent)})`;
+        avgBitrateDelta.textContent = `差值：${deltaDisplay}${percentDisplay}`;
+    } else {
+        avgBitrateDelta.textContent = '差值：-';
+    }
+
+    qualityMetricsBody.innerHTML = '';
+    const metricLabels = {
+        psnr: 'PSNR (dB)',
+        ssim: 'SSIM',
+        vmaf: 'VMAF',
+    };
+
+    Object.entries(data.comparisons.quality_metrics).forEach(([key, stat]) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-4 py-3 text-gray-700">${metricLabels[key] || key.toUpperCase()}</td>
+            <td class="px-4 py-3">${formatNumber(stat.template_a)}</td>
+            <td class="px-4 py-3">${formatNumber(stat.template_b)}</td>
+            <td class="px-4 py-3">${stat.delta == null ? '-' : formatNumber(stat.delta)}</td>
+            <td class="px-4 py-3">${stat.delta_percent == null ? '-' : formatPercent(stat.delta_percent)}</td>
+        `;
+        qualityMetricsBody.appendChild(row);
+    });
+
+    bdRateBody.innerHTML = '';
+    Object.entries(data.comparisons.bd_rate).forEach(([metric, value]) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-4 py-3 text-gray-700">${metricLabels[metric] || metric.toUpperCase()}</td>
+            <td class="px-4 py-3">${value == null ? '-' : formatPercent(value)}</td>
+        `;
+        bdRateBody.appendChild(row);
+    });
+
+    perFileBody.innerHTML = '';
+    const filesA = data.template_a.results;
+    const filesB = data.template_b.results;
+
+    filesA.forEach((itemA, index) => {
+        const itemB = filesB[index];
+        const bitrateA = (itemA.output_info?.bitrate ?? null);
+        const bitrateB = (itemB?.output_info?.bitrate ?? null);
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-4 py-3 text-gray-700">${escapeHtml(itemA.source_file)}</td>
+            <td class="px-4 py-3 text-right">${formatNumber(itemA.elapsed_seconds)}</td>
+            <td class="px-4 py-3 text-right">${itemB ? formatNumber(itemB.elapsed_seconds) : '-'}</td>
+            <td class="px-4 py-3 text-right">${formatNumber(itemA.average_fps)}</td>
+            <td class="px-4 py-3 text-right">${itemB ? formatNumber(itemB.average_fps) : '-'}</td>
+            <td class="px-4 py-3 text-right">${formatPercent(itemA.cpu_percent)}</td>
+            <td class="px-4 py-3 text-right">${itemB ? formatPercent(itemB.cpu_percent) : '-'}</td>
+            <td class="px-4 py-3 text-right">${bitrateA == null ? '-' : formatNumber(bitrateA / bitrateFactor)}</td>
+            <td class="px-4 py-3 text-right">${bitrateB == null ? '-' : formatNumber(bitrateB / bitrateFactor)}</td>
+        `;
+        perFileBody.appendChild(row);
+    });
+}
+
+loadTemplates();
+</script>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}转码模板管理 - VQMR{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">转码模板管理</h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    管理视频转码配置模板，支持批量处理和质量指标计算
+                </p>
+            </div>
+            <a href="/templates/new" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                <span class="flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    创建新模板
+                </span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="bg-white rounded-lg shadow-sm p-4">
+        <div class="flex items-center space-x-4">
+            <label class="text-sm font-medium text-gray-700">编码器类型:</label>
+            <select id="encoderFilter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">全部</option>
+                <option value="ffmpeg">FFmpeg</option>
+                <option value="x264">x264</option>
+                <option value="x265">x265</option>
+                <option value="vvenc">VVenC</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Templates List -->
+    <div id="templatesList" class="space-y-4">
+        <!-- Loading state -->
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-sm text-gray-600">加载中...</p>
+        </div>
+
+        <!-- Empty state -->
+        <div id="emptyState" class="hidden bg-white rounded-lg shadow-sm p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">没有模板</h3>
+            <p class="mt-1 text-sm text-gray-500">开始创建您的第一个转码模板</p>
+            <div class="mt-6">
+                <a href="/templates/new" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    创建模板
+                </a>
+            </div>
+        </div>
+
+        <!-- Templates grid -->
+        <div id="templatesGrid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mt-4">删除模板</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">确定要删除此模板吗？此操作无法撤销。</p>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button id="confirmDelete" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    删除
+                </button>
+                <button id="cancelDelete" class="mt-3 px-4 py-2 bg-white text-gray-800 text-base font-medium rounded-md w-full shadow-sm border border-gray-300 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let templates = [];
+let deleteTemplateId = null;
+
+// Load templates
+async function loadTemplates(encoderType = '') {
+    document.getElementById('loading').classList.remove('hidden');
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('templatesGrid').classList.add('hidden');
+
+    try {
+        let url = '/api/templates';
+        if (encoderType) {
+            url += `?encoder_type=${encoderType}`;
+        }
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to load templates');
+        
+        templates = await response.json();
+        
+        document.getElementById('loading').classList.add('hidden');
+        
+        if (templates.length === 0) {
+            document.getElementById('emptyState').classList.remove('hidden');
+        } else {
+            renderTemplates();
+        }
+    } catch (error) {
+        console.error('Error loading templates:', error);
+        document.getElementById('loading').classList.add('hidden');
+        alert('加载模板失败: ' + error.message);
+    }
+}
+
+// Render templates
+function renderTemplates() {
+    const grid = document.getElementById('templatesGrid');
+    grid.innerHTML = '';
+    grid.classList.remove('hidden');
+
+    templates.forEach(template => {
+        const card = createTemplateCard(template);
+        grid.appendChild(card);
+    });
+}
+
+// Create template card
+function createTemplateCard(template) {
+    const div = document.createElement('div');
+    div.className = 'bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition';
+
+    const encoderColors = {
+        'ffmpeg': 'bg-indigo-100 text-indigo-800',
+        'x264': 'bg-teal-100 text-teal-800',
+        'x265': 'bg-pink-100 text-pink-800',
+        'vvenc': 'bg-orange-100 text-orange-800'
+    };
+
+    const sequenceColors = {
+        'media': 'bg-blue-100 text-blue-800',
+        'yuv420p': 'bg-purple-100 text-purple-800'
+    };
+
+    div.innerHTML = `
+        <div class="flex justify-between items-start mb-3">
+            <h3 class="text-lg font-semibold text-gray-900 truncate flex-1">${escapeHtml(template.name)}</h3>
+            <div class="ml-2 flex gap-1">
+                <span class="px-2 py-1 rounded text-xs font-medium ${sequenceColors[template.sequence_type] || 'bg-gray-100 text-gray-800'}">
+                    ${template.sequence_type === 'media' ? 'Media' : 'YUV'}
+                </span>
+                <span class="px-2 py-1 rounded text-xs font-medium ${encoderColors[template.encoder_type] || 'bg-gray-100 text-gray-800'}">
+                    ${template.encoder_type.toUpperCase()}
+                </span>
+            </div>
+        </div>
+
+        ${template.description ? `
+            <p class="text-sm text-gray-600 mb-4 line-clamp-2">${escapeHtml(template.description)}</p>
+        ` : ''}
+
+        <div class="text-xs text-gray-500 mb-4">
+            创建于: ${new Date(template.created_at).toLocaleString('zh-CN')}
+        </div>
+
+        <div class="flex space-x-2">
+            <a href="/templates/${template.template_id}" class="flex-1 bg-blue-600 text-white text-center px-3 py-2 rounded text-sm hover:bg-blue-700 transition">
+                查看
+            </a>
+            <a href="/templates/${template.template_id}/edit" class="flex-1 bg-gray-600 text-white text-center px-3 py-2 rounded text-sm hover:bg-gray-700 transition">
+                编辑
+            </a>
+            <button onclick="showDeleteModal('${template.template_id}')" class="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </button>
+        </div>
+    `;
+
+    return div;
+}
+
+// Show delete modal
+function showDeleteModal(templateId) {
+    deleteTemplateId = templateId;
+    document.getElementById('deleteModal').classList.remove('hidden');
+}
+
+// Hide delete modal
+function hideDeleteModal() {
+    deleteTemplateId = null;
+    document.getElementById('deleteModal').classList.add('hidden');
+}
+
+// Delete template
+async function deleteTemplate() {
+    if (!deleteTemplateId) return;
+
+    try {
+        const response = await fetch(`/api/templates/${deleteTemplateId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to delete template');
+
+        hideDeleteModal();
+        loadTemplates(document.getElementById('encoderFilter').value);
+    } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('删除模板失败: ' + error.message);
+    }
+}
+
+// Escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Event listeners
+document.getElementById('encoderFilter').addEventListener('change', (e) => {
+    loadTemplates(e.target.value);
+});
+
+document.getElementById('confirmDelete').addEventListener('click', deleteTemplate);
+document.getElementById('cancelDelete').addEventListener('click', hideDeleteModal);
+
+// Close modal on outside click
+document.getElementById('deleteModal').addEventListener('click', (e) => {
+    if (e.target.id === 'deleteModal') {
+        hideDeleteModal();
+    }
+});
+
+// Load templates on page load
+loadTemplates();
+</script>
+{% endblock %}

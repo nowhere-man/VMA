@@ -1,11 +1,11 @@
 [tool.pytest.ini_options]
-testpaths = ["backend/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
     "-v",
-    "--cov=backend/src",
+    "--cov=src",
     "--cov-report=html:coverage_html_report",
     "--cov-report=term-missing",
     "--cov-fail-under=80",
@@ -21,11 +21,13 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["backend/src"]
+source = ["src"]
 branch = true
 omit = [
     "*/tests/*",
     "*/__init__.py",
+    "venv/*",
+    ".venv/*",
 ]
 
 [tool.coverage.report]

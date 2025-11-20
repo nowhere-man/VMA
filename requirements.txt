@@ -1,7 +1,4 @@
-# VQMR - Video Quality Metrics Report
-# Python Dependencies
-
-# Core Framework
+ # Core Framework
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 jinja2>=3.1.0
@@ -19,12 +16,17 @@ nanoid>=2.0.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-asyncio>=0.21.0
-httpx>=0.25.0  # For TestClient
+httpx>=0.25.0
 
 # Code Quality
 flake8>=6.1.0
 black>=23.10.0
 mypy>=1.6.0
 
-# System Monitoring (for CPU utilization tracking)
+# CPU utilization tracking
 psutil>=5.9.0
+
+# Report Generation
+streamlit>=1.28.0
+plotly>=5.17.0
+pandas>=2.1.0
