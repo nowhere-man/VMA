@@ -650,3 +650,15 @@ else:  # 任务对比
 # 页脚
 st.markdown("---")
 st.caption("VQMR - Video Quality Metrics Report | Powered by Streamlit")
+
+# 快速导航
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("← 返回报告列表"):
+        st.switch_page("streamlit_app.py")
+with col2:
+    if st.button("📈 查看报告详情"):
+        if 'selected_report_id' in st.session_state:
+            st.switch_page("pages/2_📈_Report_Details.py")
+        else:
+            st.info("请先从报告列表选择一个报告")
