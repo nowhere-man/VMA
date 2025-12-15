@@ -121,7 +121,7 @@ else:
             with col2:
                 if st.button("查看详情", key=f"detail_{idx}"):
                     st.session_state['selected_report_id'] = report['report_id']
-                    st.switch_page("pages/2_📈_Report_Details.py")
+                    st.switch_page("src/pages/report_details.py")
 
             # 模板信息
             with st.expander("📝 模板参数", expanded=False):
@@ -177,3 +177,13 @@ else:
 # 页脚
 st.markdown("---")
 st.caption("VQMR - Video Quality Metrics Report | Powered by Streamlit")
+
+# 快速导航
+with st.expander("🔗 快速导航", expanded=False):
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📈 查看报告详情"):
+            st.info("请先从上方报告列表选择一个报告")
+    with col2:
+        if st.button("📉 指标对比分析"):
+            st.switch_page("src/pages/metrics_comparison.py")
