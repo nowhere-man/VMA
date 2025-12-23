@@ -346,6 +346,7 @@ async def build_bitstream_report(
         raise ValueError("未提供任何编码视频")
 
     # 1) 准备参考 yuv420p
+    ref_tmp_created = False
     if _is_yuv(reference_path):
         if raw_width is None or raw_height is None or raw_fps is None:
             raise ValueError("参考视频为 .yuv，必须提供 width/height/fps")
@@ -372,6 +373,7 @@ async def build_bitstream_report(
             command_type="ref_to_yuv",
             source_file=str(reference_path),
         )
+        ref_tmp_created = True
 
     ref_frames_total = _count_yuv420p_frames(ref_yuv, ref_width, ref_height)
 
@@ -655,6 +657,13 @@ async def build_bitstream_report(
         "encoded": encoded_summaries,
     }
 
+    # 清理参考临时 yuv（仅对非原始 yuv 输入）
+    try:
+        if ref_tmp_created and ref_yuv.exists():
+            ref_yuv.unlink()
+    except Exception:
+        logger.warning("清理参考 yuv 失败", exc_info=True)
+
     return report_data, summary
 
 
@@ -696,5 +705,39 @@ async def analyze_bitstream_job(
 
     summary["report_data_file"] = str((analysis_dir / "report_data.json").relative_to(job.job_dir))
     report_data["job_id"] = job.job_id
+
+    # 清理上传的源文件（仅删除任务目录内的副本，保留外部路径）
+    def _safe_unlink(path: Path) -> None:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
+        except Exception:
+            logger.warning(f"删除文件失败: {path}", exc_info=True)
+
+    job_root = job.job_dir.resolve()
+    to_remove: list[Path] = []
+
+    ref_path = job.get_reference_path()
+    if ref_path and ref_path.exists():
+        try:
+            if ref_path.resolve().is_relative_to(job_root):
+                to_remove.append(ref_path)
+        except Exception:
+            pass
+
+    for vid in job.metadata.encoded_videos or []:
+        p = Path(vid.filename)
+        if not p.is_absolute():
+            p = job.job_dir / p
+        if p.exists():
+            try:
+                if p.resolve().is_relative_to(job_root):
+                    to_remove.append(p)
+            except Exception:
+                pass
+
+    for item in to_remove:
+        _safe_unlink(item)
 
     return report_data, summary

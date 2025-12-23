@@ -345,7 +345,8 @@ st.dataframe(pd.DataFrame(bitrate_rows), use_container_width=True, hide_index=Tr
 
 st.subheader("按时间间隔聚合的码率图")
 
-chart_type = st.selectbox("图形类型", ["折线图", "柱状图"], key="br_chart_type")
+# 默认展示柱状图
+chart_type = st.selectbox("图形类型", ["柱状图", "折线图"], key="br_chart_type", index=0)
 bin_seconds = st.slider("聚合间隔 (秒)", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="br_bin")
 
 fig = go.Figure()

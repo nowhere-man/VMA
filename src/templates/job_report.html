@@ -3,12 +3,12 @@
 {% block title %}任务报告 - {{ job.job_id }} - VMR{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" id="jobPage" data-job-id="{{ job.job_id }}" data-status="{{ job.status }}">
     <!-- 任务信息 -->
     <div class="bg-white rounded-lg shadow-sm p-6">
         <div class="flex items-center justify-between mb-4">
             <h1 class="text-2xl font-bold text-gray-900">任务报告</h1>
-            <span class="px-3 py-1 rounded-full text-sm font-medium
+            <span id="statusBadge" class="px-3 py-1 rounded-full text-sm font-medium
                 {% if job.status == 'completed' %}bg-green-100 text-green-800
                 {% elif job.status == 'processing' %}bg-blue-100 text-blue-800
                 {% elif job.status == 'failed' %}bg-red-100 text-red-800
@@ -84,43 +84,48 @@
     {% endif %}
 
     <!-- 命令执行日志 -->
-    {% if job.command_logs %}
     <div class="bg-white rounded-lg shadow-sm p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">命令执行日志</h2>
-        <div class="border rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
-            {% for cmd in job.command_logs %}
-            <div class="px-3 py-2 text-xs {% if cmd.status == 'failed' %}bg-red-50{% elif cmd.status == 'running' %}bg-blue-50{% elif cmd.status == 'completed' %}bg-green-50{% else %}bg-gray-50{% endif %}">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded font-semibold {% if cmd.command_type == 'encode' %}bg-purple-200 text-purple-800{% elif cmd.command_type == 'psnr' %}bg-blue-200 text-blue-800{% elif cmd.command_type == 'ssim' %}bg-green-200 text-green-800{% elif cmd.command_type == 'vmaf' %}bg-pink-200 text-pink-800{% else %}bg-gray-200 text-gray-800{% endif %}">
-                            {{ cmd.command_type.upper() }}
-                        </span>
-                        <span class="px-2 py-0.5 rounded-full {% if cmd.status == 'running' %}bg-blue-200 text-blue-800{% elif cmd.status == 'completed' %}bg-green-200 text-green-800{% elif cmd.status == 'failed' %}bg-red-200 text-red-800{% else %}bg-gray-200 text-gray-800{% endif %}">
-                            {{ cmd.status }}
-                        </span>
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold text-gray-900">命令执行日志</h2>
+            <button id="commandsRefreshBtn" class="px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 text-xs">刷新</button>
+        </div>
+        <div id="commandLogs" class="border rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
+            {% if job.command_logs %}
+                {% for cmd in job.command_logs %}
+                <div class="px-3 py-2 text-xs {% if cmd.status == 'failed' %}bg-red-50{% elif cmd.status == 'running' %}bg-blue-50{% elif cmd.status == 'completed' %}bg-green-50{% else %}bg-gray-50{% endif %}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded font-semibold {% if cmd.command_type == 'encode' %}bg-purple-200 text-purple-800{% elif cmd.command_type == 'psnr' %}bg-blue-200 text-blue-800{% elif cmd.command_type == 'ssim' %}bg-green-200 text-green-800{% elif cmd.command_type == 'vmaf' %}bg-pink-200 text-pink-800{% else %}bg-gray-200 text-gray-800{% endif %}">
+                                {{ cmd.command_type.upper() }}
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full {% if cmd.status == 'running' %}bg-blue-200 text-blue-800{% elif cmd.status == 'completed' %}bg-green-200 text-green-800{% elif cmd.status == 'failed' %}bg-red-200 text-red-800{% else %}bg-gray-200 text-gray-800{% endif %}">
+                                {{ cmd.status }}
+                            </span>
+                        </div>
+                        {% if cmd.source_file %}
+                        <span class="text-[11px] text-gray-600">{{ cmd.source_file }}</span>
+                        {% endif %}
                     </div>
-                    {% if cmd.source_file %}
-                    <span class="text-[11px] text-gray-600">{{ cmd.source_file }}</span>
-                    {% endif %}
-                </div>
-                <div class="mt-1 font-mono text-[11px] text-gray-800 break-all">{{ cmd.command }}</div>
-                <div class="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-                    <span>
-                        {% if cmd.started_at %}{{ cmd.started_at }}{% endif %}
-                        {% if cmd.completed_at %} → {{ cmd.completed_at }}{% endif %}
-                    </span>
+                    <div class="mt-1 font-mono text-[11px] text-gray-800 break-all">{{ cmd.command }}</div>
+                    <div class="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+                        <span>
+                            {% if cmd.started_at %}{{ cmd.started_at }}{% endif %}
+                            {% if cmd.completed_at %} → {{ cmd.completed_at }}{% endif %}
+                        </span>
+                        {% if cmd.error_message %}
+                        <span class="text-red-600 font-medium">error</span>
+                        {% endif %}
+                    </div>
                     {% if cmd.error_message %}
-                    <span class="text-red-600 font-medium">error</span>
+                    <div class="mt-1 text-[11px] text-red-700 break-all">错误: {{ cmd.error_message }}</div>
                     {% endif %}
                 </div>
-                {% if cmd.error_message %}
-                <div class="mt-1 text-[11px] text-red-700 break-all">错误: {{ cmd.error_message }}</div>
-                {% endif %}
-            </div>
-            {% endfor %}
+                {% endfor %}
+            {% else %}
+            <div class="p-4 text-sm text-gray-600" id="commandEmpty">暂未产生命令日志，任务启动后将自动显示。</div>
+            {% endif %}
         </div>
 	    </div>
-	    {% endif %}
 
     <!-- 码流分析报告（Streamlit） -->
     {% if job.status == 'completed' and job.execution_result and job.execution_result.report_data_file %}
@@ -335,4 +340,212 @@
         </a>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const page = document.getElementById('jobPage');
+  if (!page) return;
+  const jobId = page.dataset.jobId;
+  let lastStatus = page.dataset.status || '';
+
+  const statusBadge = document.getElementById('statusBadge');
+  const commandsRefreshBtn = document.getElementById('commandsRefreshBtn');
+  const commandLogs = document.getElementById('commandLogs');
+
+  const statusClassMap = {
+    pending: 'bg-gray-100 text-gray-800',
+    processing: 'bg-blue-100 text-blue-800',
+    completed: 'bg-green-100 text-green-800',
+    failed: 'bg-red-100 text-red-800',
+  };
+
+  const typeClassMap = {
+    encode: 'bg-purple-200 text-purple-800',
+    psnr: 'bg-blue-200 text-blue-800',
+    ssim: 'bg-green-200 text-green-800',
+    vmaf: 'bg-pink-200 text-pink-800',
+  };
+
+  function setStatus(status) {
+    if (!statusBadge) return;
+    statusBadge.textContent = status;
+    const base = 'px-3 py-1 rounded-full text-sm font-medium';
+    statusBadge.className = `${base} ${statusClassMap[status] || 'bg-gray-100 text-gray-800'}`;
+  }
+
+  function renderLogs(logs) {
+    if (!commandLogs) return;
+    commandLogs.innerHTML = '';
+    if (!logs || !logs.length) {
+      const empty = document.createElement('div');
+      empty.className = 'p-4 text-sm text-gray-600';
+      empty.textContent = '暂未产生命令日志，任务启动后将自动显示。';
+      commandLogs.appendChild(empty);
+      return;
+    }
+
+    logs.forEach((log) => {
+      const wrapper = document.createElement('div');
+      const statusTone =
+        log.status === 'failed'
+          ? 'bg-red-50'
+          : log.status === 'running'
+          ? 'bg-blue-50'
+          : log.status === 'completed'
+          ? 'bg-green-50'
+          : 'bg-gray-50';
+      wrapper.className = `px-3 py-2 text-xs ${statusTone}`;
+
+      const top = document.createElement('div');
+      top.className = 'flex items-center justify-between';
+
+      const badges = document.createElement('div');
+      badges.className = 'flex items-center gap-2';
+
+      const typeBadge = document.createElement('span');
+      const typeTone = typeClassMap[(log.command_type || '').toLowerCase()] || 'bg-gray-200 text-gray-800';
+      typeBadge.className = `px-2 py-0.5 rounded font-semibold ${typeTone}`;
+      typeBadge.textContent = (log.command_type || '').toUpperCase();
+
+      const statusPill = document.createElement('span');
+      const statusToneBadge =
+        log.status === 'running'
+          ? 'bg-blue-200 text-blue-800'
+          : log.status === 'completed'
+          ? 'bg-green-200 text-green-800'
+          : log.status === 'failed'
+          ? 'bg-red-200 text-red-800'
+          : 'bg-gray-200 text-gray-800';
+      statusPill.className = `px-2 py-0.5 rounded-full ${statusToneBadge}`;
+      statusPill.textContent = log.status || '';
+
+      badges.appendChild(typeBadge);
+      badges.appendChild(statusPill);
+      top.appendChild(badges);
+
+      if (log.source_file) {
+        const source = document.createElement('span');
+        source.className = 'text-[11px] text-gray-600';
+        source.textContent = log.source_file;
+        top.appendChild(source);
+      }
+
+      const commandLine = document.createElement('div');
+      commandLine.className = 'mt-1 font-mono text-[11px] text-gray-800 break-all';
+      commandLine.textContent = log.command || '';
+
+      const meta = document.createElement('div');
+      meta.className = 'mt-1 flex items-center justify-between text-[11px] text-gray-500';
+      const time = document.createElement('span');
+      const started = formatTime(log.started_at);
+      const completed = formatTime(log.completed_at);
+      time.textContent = completed ? `${started} → ${completed}` : started;
+      meta.appendChild(time);
+
+      if (log.error_message) {
+        const errTag = document.createElement('span');
+        errTag.className = 'text-red-600 font-medium';
+        errTag.textContent = 'error';
+        meta.appendChild(errTag);
+      }
+
+      wrapper.appendChild(top);
+      wrapper.appendChild(commandLine);
+      wrapper.appendChild(meta);
+
+      if (log.error_message) {
+        const errMsg = document.createElement('div');
+        errMsg.className = 'mt-1 text-[11px] text-red-700 break-all';
+        errMsg.textContent = `错误: ${log.error_message}`;
+        wrapper.appendChild(errMsg);
+      }
+
+      commandLogs.appendChild(wrapper);
+    });
+  }
+
+  async function fetchJob() {
+    const res = await fetch(`/api/jobs/${jobId}`);
+    if (!res.ok) {
+      throw new Error('刷新失败');
+    }
+    return res.json();
+  }
+
+  let pollTimer = null;
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  async function refresh(manual = false) {
+    try {
+      const data = await fetchJob();
+      setStatus(data.status);
+      renderLogs(data.command_logs || []);
+      const isFinal = data.status === 'completed' || data.status === 'failed';
+      if (isFinal && !manual) {
+        stopPolling();
+      }
+      if (data.status !== lastStatus && isFinal) {
+        stopPolling();
+        setTimeout(() => window.location.reload(), 500);
+      }
+      lastStatus = data.status;
+    } catch (err) {
+      if (manual) {
+        alert(err.message || '刷新失败');
+      }
+    }
+  }
+
+  if (commandsRefreshBtn) {
+    commandsRefreshBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      refresh(true);
+    });
+  }
+
+  // 仅在 processing 时自动轮询
+  if (lastStatus === 'processing') {
+    pollTimer = setInterval(refresh, 2000);
+    refresh();
+  } else {
+    // 非 processing 状态下仅渲染一次
+    renderLogs({{ job.command_logs | tojson | safe }});
+  }
+});
+
+// 时间格式化：yyyy-MM-dd HH:mm:ss
+function formatTime(val) {
+  if (!val) return '';
+  let normalized = val;
+  if (typeof normalized === 'string') {
+    // 截断微秒到毫秒，避免浏览器解析失败
+    const parts = normalized.split('.');
+    if (parts.length > 1) {
+      const afterDot = parts[1];
+      const tail = afterDot.replace(/Z|[+-].*$/, '');
+      const tz = afterDot.slice(tail.length);
+      const ms = tail.slice(0, 3).padEnd(3, '0');
+      normalized = `${parts[0]}.${ms}${tz || ''}`;
+    }
+    // 若无时区信息，按 UTC 处理再转本地
+    if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) {
+      normalized += 'Z';
+    }
+  }
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return String(val);
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+</script>
 {% endblock %}
