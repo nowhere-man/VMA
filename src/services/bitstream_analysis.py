@@ -11,9 +11,11 @@ Ref + 多个 Encoded 的质量指标与码率分析：
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 from pathlib import Path
+from io import StringIO
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.config import settings
@@ -148,68 +150,123 @@ def _parse_ssim_stats(log_path: Path) -> Dict[str, Any]:
     }
 
 
-def _parse_vmaf_csv(json_path: Path) -> Dict[str, Any]:
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    frames = data.get("frames", []) or []
-
+def _parse_vmaf_csv(log_path: Path) -> Dict[str, Any]:
     def _to_float(val: Any) -> Optional[float]:
         try:
             return float(val)
         except (TypeError, ValueError):
             return None
 
-    # 收集帧级所有可用指标（包含 vmaf/vmaf_neg 及子特征，如 vif、adm、motion 等）
-    metric_keys = set()
-    for frame in frames:
-        metrics = frame.get("metrics", {}) or {}
-        metric_keys.update(metrics.keys())
+    def _mean(values: List[float]) -> float:
+        return sum(values) / len(values) if values else 0.0
 
-    metric_keys_sorted = sorted(metric_keys)
-    frame_series: Dict[str, List[Optional[float]]] = {k: [] for k in metric_keys_sorted}
+    def _harmonic_mean(values: List[float]) -> float:
+        positives = [v for v in values if v and v > 0]
+        return len(positives) / sum(1.0 / v for v in positives) if positives else 0.0
 
-    for frame in frames:
-        metrics = frame.get("metrics", {}) or {}
-        for key in metric_keys_sorted:
-            frame_series[key].append(_to_float(metrics.get(key)))
+    def _build_feature_summary(series: Dict[str, List[Optional[float]]]) -> Dict[str, Dict[str, float]]:
+        summary: Dict[str, Dict[str, float]] = {}
+        for key, vals in series.items():
+            nums = [v for v in vals if isinstance(v, (int, float))]
+            if not nums:
+                continue
+            entry: Dict[str, float] = {"mean": _mean(nums)}
+            harmonic = _harmonic_mean(nums)
+            if harmonic:
+                entry["harmonic_mean"] = harmonic
+            summary[key] = entry
+        return summary
 
-    # 移除全为空的指标，避免带来无意义的曲线
-    frame_series = {k: v for k, v in frame_series.items() if any(val is not None for val in v)}
+    def _parse_json(text: str) -> Dict[str, Any]:
+        data = json.loads(text)
+        frames = data.get("frames", []) or []
 
-    pooled = data.get("pooled_metrics", {}) or {}
-    vmaf_pooled = pooled.get("vmaf", {}) or {}
-    vmaf_neg_pooled = pooled.get("vmaf_neg", {}) or {}
+        metric_keys = set()
+        for frame in frames:
+            metrics = frame.get("metrics", {}) or {}
+            metric_keys.update(metrics.keys())
 
-    feature_summary: Dict[str, Dict[str, float]] = {}
-    for key, stats in pooled.items():
-        if not isinstance(stats, dict):
-            continue
-        entry: Dict[str, float] = {}
-        mean_val = _to_float(stats.get("mean"))
-        harmonic_val = _to_float(stats.get("harmonic_mean"))
-        if mean_val is not None:
-            entry["mean"] = mean_val
-        if harmonic_val is not None:
-            entry["harmonic_mean"] = harmonic_val
-        if entry:
-            feature_summary[key] = entry
+        metric_keys_sorted = sorted(metric_keys)
+        frame_series: Dict[str, List[Optional[float]]] = {k: [] for k in metric_keys_sorted}
 
-    result: Dict[str, Any] = {
-        "summary": {
-            "vmaf_mean": _to_float(vmaf_pooled.get("mean")) if vmaf_pooled else None,
-            "vmaf_harmonic_mean": _to_float(vmaf_pooled.get("harmonic_mean")) if vmaf_pooled else None,
-            "vmaf_neg_mean": _to_float(vmaf_neg_pooled.get("mean")) if vmaf_neg_pooled else None,
-        },
-        "frames": {
-            **frame_series,
-        },
-    }
+        for frame in frames:
+            metrics = frame.get("metrics", {}) or {}
+            for key in metric_keys_sorted:
+                frame_series[key].append(_to_float(metrics.get(key)))
 
-    if feature_summary:
-        result["feature_summary"] = feature_summary
+        frame_series = {k: v for k, v in frame_series.items() if any(val is not None for val in v)}
 
-    return result
+        pooled = data.get("pooled_metrics", {}) or {}
+        vmaf_pooled = pooled.get("vmaf", {}) or {}
+        vmaf_neg_pooled = pooled.get("vmaf_neg", {}) or {}
+
+        feature_summary: Dict[str, Dict[str, float]] = {}
+        for key, stats in pooled.items():
+            if not isinstance(stats, dict):
+                continue
+            entry: Dict[str, float] = {}
+            mean_val = _to_float(stats.get("mean"))
+            harmonic_val = _to_float(stats.get("harmonic_mean"))
+            if mean_val is not None:
+                entry["mean"] = mean_val
+            if harmonic_val is not None:
+                entry["harmonic_mean"] = harmonic_val
+            if entry:
+                feature_summary[key] = entry
+
+        result: Dict[str, Any] = {
+            "summary": {
+                "vmaf_mean": _to_float(vmaf_pooled.get("mean")) if vmaf_pooled else None,
+                "vmaf_harmonic_mean": _to_float(vmaf_pooled.get("harmonic_mean")) if vmaf_pooled else None,
+                "vmaf_neg_mean": _to_float(vmaf_neg_pooled.get("mean")) if vmaf_neg_pooled else None,
+            },
+            "frames": {
+                **frame_series,
+            },
+        }
+
+        if feature_summary:
+            result["feature_summary"] = feature_summary
+
+        return result
+
+    def _parse_csv(text: str) -> Dict[str, Any]:
+        reader = csv.DictReader(StringIO(text))
+        fieldnames = reader.fieldnames or []
+        metric_keys = [fn for fn in fieldnames if fn and fn.lower() not in {"frame", "index", "frame_num"}]
+
+        frame_series: Dict[str, List[Optional[float]]] = {k: [] for k in metric_keys}
+        for row in reader:
+            for key in metric_keys:
+                frame_series[key].append(_to_float(row.get(key)))
+
+        frame_series = {k: v for k, v in frame_series.items() if any(val is not None for val in v)}
+
+        vmaf_vals = [v for v in frame_series.get("vmaf", []) if v is not None]
+        vmaf_neg_vals = [v for v in frame_series.get("vmaf_neg", []) if v is not None]
+
+        result: Dict[str, Any] = {
+            "summary": {
+                "vmaf_mean": _mean(vmaf_vals) if vmaf_vals else None,
+                "vmaf_harmonic_mean": _harmonic_mean(vmaf_vals) if vmaf_vals else None,
+                "vmaf_neg_mean": _mean(vmaf_neg_vals) if vmaf_neg_vals else None,
+            },
+            "frames": frame_series,
+        }
+
+        feature_summary = _build_feature_summary(frame_series)
+        if feature_summary:
+            result["feature_summary"] = feature_summary
+
+        return result
+
+    text = log_path.read_text(encoding="utf-8", errors="ignore")
+    if not text.strip():
+        raise ValueError(f"VMAF log is empty: {log_path.name}")
+
+    if text.lstrip().startswith("{"):
+        return _parse_json(text)
+    return _parse_csv(text)
 
 
 async def _run_subprocess(cmd: List[str]) -> None:
@@ -310,6 +367,10 @@ async def build_bitstream_report(
             reference_path,
             ref_yuv,
             input_format=ref_fmt,
+            add_command_callback=add_command_callback,
+            update_status_callback=update_status_callback,
+            command_type="ref_to_yuv",
+            source_file=str(reference_path),
         )
 
     ref_frames_total = _count_yuv420p_frames(ref_yuv, ref_width, ref_height)
@@ -382,6 +443,10 @@ async def build_bitstream_report(
                     input_pix_fmt=raw_pix_fmt,
                     scale_width=ref_width,
                     scale_height=ref_height,
+                    add_command_callback=add_command_callback,
+                    update_status_callback=update_status_callback,
+                    command_type="scale_yuv_to_ref",
+                    source_file=str(enc_input),
                 )
             else:
                 enc_yuv = enc_input
@@ -393,6 +458,10 @@ async def build_bitstream_report(
                 input_format=enc_fmt,
                 scale_width=ref_width,
                 scale_height=ref_height,
+                add_command_callback=add_command_callback,
+                update_status_callback=update_status_callback,
+                command_type="bitstream_to_yuv",
+                source_file=str(enc_input),
             )
 
         enc_frames = _count_yuv420p_frames(enc_yuv, ref_width, ref_height)

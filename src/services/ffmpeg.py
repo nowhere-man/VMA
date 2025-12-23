@@ -116,6 +116,10 @@ class FFmpegService:
         input_pix_fmt: str = "yuv420p",
         scale_width: Optional[int] = None,
         scale_height: Optional[int] = None,
+        add_command_callback=None,
+        update_status_callback=None,
+        command_type: str = "ffmpeg_decode",
+        source_file: Optional[str] = None,
     ) -> None:
         """
         将输入视频解码为 yuv420p rawvideo。
@@ -123,6 +127,7 @@ class FFmpegService:
         - 当 input_width/input_height 提供时，输入按 rawvideo 处理（通常用于 .yuv）。
         - 当 input_format 提供时，强制指定输入格式（通常用于裸码流 h264/hevc 等）。
         - 当 scale_width/scale_height 提供时，对输出进行缩放（用于与参考视频对齐分辨率）。
+        - add_command_callback/update_status_callback 可选，用于在任务日志中记录 ffmpeg 命令
         """
         cmd: List[str] = [self.ffmpeg_path, "-y"]
 
@@ -146,6 +151,16 @@ class FFmpegService:
         cmd.extend(["-an", "-sn", "-vf", ",".join(vf_parts)])
         cmd.extend(["-f", "rawvideo", "-pix_fmt", "yuv420p", str(output_path)])
 
+        cmd_id = None
+        if add_command_callback:
+            cmd_id = add_command_callback(
+                command_type or "ffmpeg_decode",
+                " ".join(cmd),
+                source_file or str(input_path),
+            )
+        if update_status_callback and cmd_id:
+            update_status_callback(cmd_id, "running")
+
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -154,11 +169,18 @@ class FFmpegService:
             )
             _, stderr = await _wait_for_process(process, settings.ffmpeg_timeout)
             if process.returncode != 0:
-                raise RuntimeError(f"Decode to yuv failed: {stderr.decode()}")
+                error_msg = stderr.decode()
+                raise RuntimeError(f"Decode to yuv failed: {error_msg}")
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "completed")
         except asyncio.TimeoutError:
             process.kill()
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "failed", "Decode to yuv timed out")
             raise RuntimeError("Decode to yuv timed out")
         except Exception as e:
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "failed", str(e))
             raise RuntimeError(f"Failed to decode to yuv: {str(e)}")
 
     async def probe_video_frames(

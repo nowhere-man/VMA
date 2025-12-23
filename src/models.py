@@ -43,7 +43,7 @@ class CommandLog(BaseModel):
     """命令执行记录"""
 
     command_id: str = Field(..., description="命令ID")
-    command_type: str = Field(..., description="命令类型(encode/psnr/ssim/vmaf)")
+    command_type: str = Field(..., description="命令类型(encode/psnr/ssim/vmaf/ffmpeg预处理等)")
     command: str = Field(..., description="完整命令行")
     status: CommandStatus = Field(default=CommandStatus.PENDING, description="执行状态")
     source_file: Optional[str] = Field(None, description="源文件")
