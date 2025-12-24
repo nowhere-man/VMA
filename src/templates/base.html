@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}VMR - Video Metrics Report{% endblock %}</title>
+    <title>{% block title %}VMA - Video Metrics Analyzer{% endblock %}</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,30 +13,56 @@
 
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="theme-dark min-h-screen bg-slate-900 text-slate-100">
+    <style>
+      /* 简易暗色主题覆盖 */
+      .theme-dark .bg-white { background-color: #1f2937 !important; }
+      .theme-dark .bg-gray-50 { background-color: #0f172a !important; }
+      .theme-dark .border-gray-200 { border-color: #334155 !important; }
+      .theme-dark .border { border-color: #334155; }
+      .theme-dark .text-gray-900 { color: #f8fafc !important; }
+      .theme-dark .text-gray-800 { color: #e5e7eb !important; }
+      .theme-dark .text-gray-700 { color: #e2e8f0 !important; }
+      .theme-dark .text-gray-600 { color: #cbd5e1 !important; }
+      .theme-dark .text-gray-500 { color: #94a3b8 !important; }
+      .theme-dark .text-gray-400 { color: #cbd5e1 !important; }
+      .theme-dark .bg-blue-50 { background-color: rgba(59,130,246,0.12) !important; }
+      .theme-dark .bg-green-50 { background-color: rgba(34,197,94,0.12) !important; }
+      .theme-dark .bg-red-50 { background-color: rgba(239,68,68,0.12) !important; }
+      .theme-dark .bg-amber-50 { background-color: rgba(251,191,36,0.12) !important; }
+      .theme-dark a { color: #a5b4fc; }
+      .theme-dark a:hover { color: #c7d2fe; }
+      .theme-dark input, .theme-dark textarea, .theme-dark select {
+        background-color: #0f172a;
+        color: #e2e8f0;
+        border-color: #334155;
+      }
+      .theme-dark .shadow-sm, .theme-dark .shadow { box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+    </style>
+
     <!-- Navigation Bar -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
+    <nav class="bg-slate-950/80 backdrop-blur border-b border-slate-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <a href="/" class="text-xl font-bold text-blue-600">
-                        VMR
+                    <a href="/" class="text-xl font-bold text-white">
+                        VMA
                     </a>
-                    <span class="ml-3 text-sm text-gray-500">
-                        Video Metrics Report
+                    <span class="ml-3 text-sm text-slate-300">
+                        Video Metrics Analyzer
                     </span>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <a href="/" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+                    <a href="/" class="text-slate-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                         首页
                     </a>
-                    <a href="/templates" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+                    <a href="/templates" class="text-slate-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                         模板管理
                     </a>
-                    <a href="/jobs" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+                    <a href="/jobs" class="text-slate-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                         任务管理
                     </a>
-                    <a href="http://localhost:8079" target="_blank" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+                    <a href="http://localhost:8079" target="_blank" class="text-slate-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                         报告管理
                     </a>
                 </div>
@@ -50,10 +76,10 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 mt-12">
+    <footer class="bg-slate-950/80 border-t border-slate-800 mt-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <p class="text-center text-sm text-gray-500">
-                &copy; 2025 VMR - Video Metrics Report
+            <p class="text-center text-sm text-slate-400">
+                &copy; 2025 VMA - Video Metrics Analyzer
             </p>
         </div>
     </footer>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}码流分析 - VMR{% endblock %}
+{% block title %}码流分析 - VMA{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -48,10 +48,10 @@
                     <h2 class="text-sm font-semibold text-gray-900">失真视频 Distorted</h2>
 
                     <div class="space-y-2">
-                        <label class="block text-sm font-medium text-gray-700">文件路径（多个文件换行分隔）</label>
+                        <label class="block text-sm font-medium text-gray-700">视频路径（多个文件换行分隔）</label>
                         <div class="relative">
                             <textarea id="encPaths" name="encoded_paths" rows="4"
-                                      placeholder="/path/to/encoded_a.mp4&#10;/path/to/encoded_b.h265"
+                                      placeholder="/path/to/testAMe.mp4&#10;/path/to/testB.h265"
                                       class="w-full pr-24 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                             <label class="absolute top-2 right-1 px-3 py-1.5 text-sm font-semibold text-blue-700 bg-blue-50 rounded-md border border-blue-200 cursor-pointer hover:bg-blue-100">
                                 选择
@@ -60,7 +60,7 @@
                         </div>
                         <div class="text-left text-xs text-gray-500 mt-1"> 或</div>
                         <div id="encDrop" class="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-3 text-sm text-gray-600 bg-gray-50 hover:border-blue-400 hover:bg-blue-50 transition-colors">
-                            将一个或多个文件拖拽到此处
+                            将文件拖拽到此处上传
                         </div>
                         <div id="encFileName" class="text-xs text-gray-600"></div>
                     </div>

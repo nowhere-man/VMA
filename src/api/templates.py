@@ -26,15 +26,6 @@ from src.services.template_storage import template_storage
 router = APIRouter(prefix="/api/templates", tags=["templates"])
 
 
-class ExecuteTemplateRequest(BaseModel):
-    """执行模板转码请求"""
-
-    source_files: Optional[List[str]] = Field(
-        None, description="可选的源文件列表，不提供则使用模板配置"
-    )
-    recompute_baseline: bool = Field(default=True, description="是否重新计算 Baseline")
-
-
 def _fingerprint(side) -> str:
     import json
     payload = {
@@ -280,7 +271,7 @@ async def validate_template(template_id: str) -> ValidateTemplateResponse:
     summary="执行模板转码",
 )
 async def execute_template(
-    template_id: str, request: ExecuteTemplateRequest, background_tasks: BackgroundTasks
+    template_id: str, request: dict = None, background_tasks: BackgroundTasks = None
 ) -> dict:
     """
     使用模板执行视频转码
@@ -344,7 +335,6 @@ async def execute_template(
 
             result = await template_runner.execute(
                 template,
-                recompute_baseline=request.recompute_baseline,
                 job=job,
             )
             # 保存 baseline 状态更新

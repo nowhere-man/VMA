@@ -100,7 +100,7 @@ def _plot_frame_lines(
     st.plotly_chart(fig, use_container_width=True)
 
 
-st.set_page_config(page_title="码流分析报告 - VMR", page_icon="📊", layout="wide")
+st.set_page_config(page_title="码流分析报告 - VMA", page_icon="📊", layout="wide")
 st.title("📊 码流分析报告")
 
 job_id = _get_job_id()

@@ -1,5 +1,5 @@
 """
-VMR FastAPI 应用入口点
+VMA FastAPI 应用入口点
 
 Web application for video encoding quality analysis using FFmpeg metrics.
 """
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 # 创建 FastAPI 应用实例
 app = FastAPI(
-    title="VMR - Video Metrics Report",
+    title="VMA - Video Metrics Analyzer",
     description="Web application for video encoding quality analysis",
     version="0.1.0",
     docs_url="/api/docs",

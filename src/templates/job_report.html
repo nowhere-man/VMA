@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}任务报告 - {{ job.job_id }} - VMR{% endblock %}
+{% block title %}任务报告 - {{ job.job_id }} - VMA{% endblock %}
 
 {% block content %}
 <div class="space-y-6" id="jobPage" data-job-id="{{ job.job_id }}" data-status="{{ job.status }}">
@@ -138,12 +138,12 @@
             {% if job.mode == 'template' %}
             <a href="http://localhost:8079?template_job_id={{ job.job_id }}" target="_blank"
                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                打开 Streamlit 报告 →
+                打开报告 →
             </a>
             {% else %}
             <a href="http://localhost:8079?job_id={{ job.job_id }}" target="_blank"
                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                打开 Streamlit 报告 →
+                打开报告 →
             </a>
             {% endif %}
         </div>
@@ -371,8 +371,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const typeClassMap = {
     encode: 'bg-purple-200 text-purple-800',
     psnr: 'bg-blue-200 text-blue-800',
-    ssim: 'bg-green-200 text-green-800',
+    ssim: 'bg-gray-300 text-[#1f2937]',
     vmaf: 'bg-pink-200 text-pink-800',
+    ref_to_yuv: 'bg-amber-200 text-amber-900',
+    bitstream_to_yuv: 'bg-amber-200 text-amber-900',
   };
 
   function setStatus(status) {

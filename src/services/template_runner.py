@@ -371,7 +371,6 @@ def _extract_bitrate_point(path: Path) -> Optional[float]:
 
 async def run_template(
     template: EncodingTemplate,
-    recompute_baseline: bool = True,
     job=None,
 ) -> Dict[str, Any]:
     def _add_cmd(cmd_type: str, command: str, source_file: Optional[str] = None) -> Optional[str]:
@@ -429,7 +428,10 @@ async def run_template(
     ordered_sources = [base_map[k] for k in sorted(base_map.keys())]
 
     # Baseline 编码/校验
-    baseline_needed = recompute_baseline or not template.metadata.baseline_computed
+    def _has_files(p: Path) -> bool:
+        return any(p.glob("*")) if p.exists() else False
+
+    baseline_needed = (not template.metadata.baseline_computed) or (not _has_files(Path(template.metadata.baseline.bitstream_dir)))
     baseline_outputs = await _encode_side(
         template.metadata.baseline,
         ordered_sources,
@@ -597,8 +599,8 @@ async def run_template(
 
 # 全局实例
 class TemplateRunner:
-    async def execute(self, template: EncodingTemplate, recompute_baseline: bool, job=None):
-        return await run_template(template, recompute_baseline=recompute_baseline, job=job)
+    async def execute(self, template: EncodingTemplate, job=None):
+        return await run_template(template, job=job)
 
 
 template_runner = TemplateRunner()

@@ -1,12 +1,12 @@
 #!/bin/bash
-# VMR Application Startup Script
+# VMA Application Startup Script
 
 set -e
 
 # Switch to project root (script directory)
 cd "$(dirname "$0")"
 
-echo "Starting VMR - Video Metrics Report..."
+echo "Starting VMA - Video Metrics Analyzer..."
 echo "================================================"
 echo ""
 

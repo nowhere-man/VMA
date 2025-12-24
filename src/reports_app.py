@@ -1,5 +1,5 @@
 """
-VMR 报告应用 - Streamlit主界面
+VMA 报告应用 - Streamlit主界面
 
 质量分析报告可视化应用
 """
@@ -18,7 +18,7 @@ from src.config import settings
 
 # 页面配置
 st.set_page_config(
-    page_title="VMR 质量分析报告",
+    page_title="VMA 质量分析报告",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -166,7 +166,7 @@ else:
 st.subheader("最近的模板指标报告")
 tpl_jobs = _list_template_jobs()
 if not tpl_jobs:
-    st.info("暂无模板指标报告。请在 Metrics 分析中创建任务。")
+    st.info("暂无模板指标报告。请在 Metrics对比 中创建任务。")
 else:
     for item in tpl_jobs:
         job_id = item["job_id"]

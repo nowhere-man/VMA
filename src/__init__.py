@@ -1,1 +1,1 @@
-"""VMR Backend - Video Metrics Report"""
+"""VMA Backend - Video Metrics Analyzer"""

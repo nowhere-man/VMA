@@ -1,5 +1,5 @@
 """
-模板 Metrics 分析报告页面（Baseline / Experimental）
+模板 Metrics对比 报告页面（Baseline / Experimental）
 
 通过 `?template_job_id=<job_id>` 打开对应任务的报告。
 """
@@ -81,7 +81,7 @@ def _parse_point(label: str) -> Tuple[Optional[str], Optional[float]]:
     return rc, val
 
 
-st.set_page_config(page_title="模板 Metrics 报告 - VMR", page_icon="📊", layout="wide")
+st.set_page_config(page_title="模板 Metrics 报告 - VMA", page_icon="📊", layout="wide")
 st.title("📊 模板 Metrics 报告")
 
 job_id = _get_job_id()
