@@ -629,6 +629,11 @@ async def build_bitstream_report(
                 "psnr": psnr_data["summary"],
                 "ssim": ssim_data["summary"],
                 "vmaf": vmaf_data["summary"],
+                "bitrate": {
+                    "frame_types": frame_types,
+                    "frame_sizes": frame_sizes,
+                    "frame_timestamps": [round(t, 2) for t in frame_timestamps],
+                },
             }
         )
 

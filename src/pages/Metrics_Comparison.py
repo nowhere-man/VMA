@@ -411,33 +411,124 @@ else:
 
 # ========== Bitrate 分析 ==========
 st.header("码率分析")
-if not merged.empty:
-    st.dataframe(
-        merged[
-            [
-                "Video",
-                "RC",
-                "Point",
-                "Bitrate_kbps_base",
-                "Bitrate_kbps_exp",
-                "Bitrate Δ%",
-            ]
-        ].sort_values(by=["Video", "Point"]),
-        use_container_width=True,
-        hide_index=True,
-    )
-    fig3 = go.Figure()
-    x_vals = merged.apply(lambda r: f"{r['Video']}_{r['Point']}", axis=1)
-    for side, col in [("Baseline", "Bitrate_kbps_base"), ("Experimental", "Bitrate_kbps_exp")]:
-        fig3.add_trace(
-            go.Bar(
-                x=x_vals,
-                y=merged[col],
-                name=side,
-            )
+
+# 构建可选的视频和点位列表
+video_point_options = []
+for entry in entries:
+    video = entry.get("source")
+    base_enc = (entry.get("baseline") or {}).get("encoded") or []
+    for item in base_enc:
+        rc, point = _parse_point(item.get("label", ""))
+        if point is not None:
+            video_point_options.append({
+                "video": video,
+                "point": point,
+                "rc": rc,
+                "label": f"{video} - {rc}_{point}",
+            })
+
+if video_point_options:
+    col_sel1, col_sel2 = st.columns(2)
+    with col_sel1:
+        video_list_br = list(dict.fromkeys([opt["video"] for opt in video_point_options]))
+        selected_video_br = st.selectbox("选择源视频", video_list_br, key="br_video")
+    with col_sel2:
+        point_list_br = [opt["point"] for opt in video_point_options if opt["video"] == selected_video_br]
+        point_list_br = list(dict.fromkeys(point_list_br))
+        selected_point_br = st.selectbox("选择码率点位", point_list_br, key="br_point")
+
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        chart_type = st.selectbox("图形类型", ["柱状图", "折线图"], key="br_chart_type", index=0)
+    with col_opt2:
+        bin_seconds = st.slider("聚合间隔 (秒)", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="br_bin")
+
+    # 找到对应的 baseline 和 experimental 数据
+    baseline_bitrate = None
+    exp_bitrate = None
+    ref_fps = 30.0
+
+    for entry in entries:
+        if entry.get("source") == selected_video_br:
+            ref_info = (entry.get("baseline") or {}).get("reference") or {}
+            ref_fps = ref_info.get("fps") or 30.0
+
+            for item in (entry.get("baseline") or {}).get("encoded") or []:
+                rc, point = _parse_point(item.get("label", ""))
+                if point == selected_point_br:
+                    baseline_bitrate = item.get("bitrate") or {}
+                    break
+
+            for item in (entry.get("experimental") or {}).get("encoded") or []:
+                rc, point = _parse_point(item.get("label", ""))
+                if point == selected_point_br:
+                    exp_bitrate = item.get("bitrate") or {}
+                    break
+            break
+
+    if baseline_bitrate and exp_bitrate:
+        def _aggregate_bitrate(bitrate_data, bin_sec):
+            ts = bitrate_data.get("frame_timestamps", []) or []
+            sizes = bitrate_data.get("frame_sizes", []) or []
+            bins = {}
+            for t, s in zip(ts, sizes):
+                try:
+                    idx = int(float(t) / bin_sec)
+                except (TypeError, ValueError):
+                    continue
+                bins[idx] = bins.get(idx, 0.0) + float(s) * 8.0
+            xs = sorted(bins.keys())
+            x_times = [i * bin_sec for i in xs]
+            y_kbps = [(bins[i] / bin_sec) / 1000.0 for i in xs]
+            return x_times, y_kbps
+
+        base_x, base_y = _aggregate_bitrate(baseline_bitrate, bin_seconds)
+        exp_x, exp_y = _aggregate_bitrate(exp_bitrate, bin_seconds)
+
+        fig_br = go.Figure()
+        if chart_type == "柱状图":
+            fig_br.add_trace(go.Bar(x=base_x, y=base_y, name="Baseline", opacity=0.7))
+            fig_br.add_trace(go.Bar(x=exp_x, y=exp_y, name="Experimental", opacity=0.7))
+            fig_br.update_layout(barmode="group")
+        else:
+            fig_br.add_trace(go.Scatter(x=base_x, y=base_y, mode="lines+markers", name="Baseline", line_shape="hv"))
+            fig_br.add_trace(go.Scatter(x=exp_x, y=exp_y, mode="lines+markers", name="Experimental", line_shape="hv"))
+
+        fig_br.update_layout(
+            title=f"码率对比 - {selected_video_br} ({selected_point_br})",
+            xaxis_title="Time (s)",
+            yaxis_title="Bitrate (kbps)",
+            hovermode="x unified",
+            legend=dict(orientation="h", y=-0.15),
         )
-    fig3.update_layout(barmode="group", xaxis_title="Video_Point", yaxis_title="Bitrate (kbps)")
-    st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig_br, use_container_width=True)
+
+        # 显示平均码率对比
+        base_avg = (baseline_bitrate.get("avg_bitrate_bps") or sum(baseline_bitrate.get("frame_sizes", [])) * 8 / (len(baseline_bitrate.get("frame_timestamps", [])) / ref_fps if baseline_bitrate.get("frame_timestamps") else 1)) / 1000
+        exp_avg = (exp_bitrate.get("avg_bitrate_bps") or sum(exp_bitrate.get("frame_sizes", [])) * 8 / (len(exp_bitrate.get("frame_timestamps", [])) / ref_fps if exp_bitrate.get("frame_timestamps") else 1)) / 1000
+
+        # 从 entries 中获取 avg_bitrate_bps
+        for entry in entries:
+            if entry.get("source") == selected_video_br:
+                for item in (entry.get("baseline") or {}).get("encoded") or []:
+                    rc, point = _parse_point(item.get("label", ""))
+                    if point == selected_point_br:
+                        base_avg = item.get("avg_bitrate_bps", 0) / 1000
+                        break
+                for item in (entry.get("experimental") or {}).get("encoded") or []:
+                    rc, point = _parse_point(item.get("label", ""))
+                    if point == selected_point_br:
+                        exp_avg = item.get("avg_bitrate_bps", 0) / 1000
+                        break
+                break
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Baseline 平均码率", f"{base_avg:.2f} kbps")
+        col_m2.metric("Experimental 平均码率", f"{exp_avg:.2f} kbps")
+        diff_pct = ((exp_avg - base_avg) / base_avg * 100) if base_avg > 0 else 0
+        col_m3.metric("码率差异", f"{diff_pct:+.2f}%")
+    else:
+        st.warning("未找到对应的码率数据。请确保报告包含帧级码率信息。")
 else:
     st.info("暂无码率对比数据。")
 
@@ -450,7 +541,61 @@ st.info("TODO: 后续加入 CPU 占用、FPS 以及编码时间统计对比。")
 st.header("环境信息")
 env = report.get("environment") or {}
 if env:
-    env_rows = [{"项": k, "值": v} for k, v in env.items()]
-    st.table(pd.DataFrame(env_rows))
+    # 使用卡片式布局展示环境信息
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("系统信息")
+        os_name = env.get('os', 'N/A')
+        os_version = env.get('os_version', '')
+        os_full = env.get('os_full', env.get('os', 'N/A'))
+        hostname = env.get('hostname', 'N/A')
+        exec_time = env.get('execution_time', 'N/A')
+
+        st.markdown(f"""
+- **执行时间**: {exec_time}
+- **操作系统**: {os_name} {os_version}
+- **主机名**: {hostname}
+""")
+
+    with col2:
+        st.subheader("CPU 信息")
+        cpu_arch = env.get('cpu_arch', 'N/A')
+        cpu_model = env.get('cpu_model', env.get('cpu', 'N/A'))
+        phys_cores = env.get('cpu_phys_cores', env.get('phys_cores', 'N/A'))
+        log_cores = env.get('cpu_log_cores', env.get('log_cores', 'N/A'))
+        cpu_percent = env.get('cpu_percent_before', env.get('cpu_percent_start', 'N/A'))
+
+        st.markdown(f"""
+- **CPU 型号**: {cpu_model}
+- **CPU 架构**: {cpu_arch}
+- **核心/线程**: {phys_cores} / {log_cores}
+- **执行前占用**: {cpu_percent}%
+""")
+
+    st.subheader("内存信息")
+    # 兼容旧格式和新格式
+    mem_total = env.get('mem_total_mb')
+    mem_available = env.get('mem_available_mb')
+    if mem_total is None and env.get('mem_total'):
+        try:
+            mem_total = round(int(env.get('mem_total')) / (1024 * 1024), 2)
+        except (ValueError, TypeError):
+            mem_total = None
+    if mem_available is None and env.get('mem_available'):
+        try:
+            mem_available = round(int(env.get('mem_available')) / (1024 * 1024), 2)
+        except (ValueError, TypeError):
+            mem_available = None
+
+    mem_percent = env.get('mem_percent_used')
+    # 如果没有 mem_percent_used，从 total 和 available 计算
+    if mem_percent is None and mem_total and mem_available:
+        mem_percent = round((1 - mem_available / mem_total) * 100, 1)
+
+    col_m1, col_m2, col_m3 = st.columns(3)
+    col_m1.metric("内存总量", f"{mem_total:.0f} MB" if mem_total else 'N/A')
+    col_m2.metric("执行前可用", f"{mem_available:.0f} MB" if mem_available else 'N/A')
+    col_m3.metric("内存使用率", f"{mem_percent}%" if mem_percent is not None else 'N/A')
 else:
     st.write("未采集到环境信息。")

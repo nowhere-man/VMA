@@ -301,19 +301,82 @@ def _bd_rate(rate1: List[float], metric1: List[float], rate2: List[float], metri
     return (np.exp(avg_exp_diff) - 1) * 100
 
 
-def _env_info() -> Dict[str, str]:
-    info = {}
+def _get_cpu_brand() -> str:
+    """跨平台获取 CPU 品牌/型号名称"""
+    import subprocess
+
+    # macOS: 使用 sysctl
+    if platform.system() == "Darwin":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+
+    # Linux: 读取 /proc/cpuinfo
+    if platform.system() == "Linux":
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        return line.split(":")[1].strip()
+        except Exception:
+            pass
+
+    # Windows: 使用 wmic 或注册表
+    if platform.system() == "Windows":
+        try:
+            result = subprocess.run(
+                ["wmic", "cpu", "get", "name"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip() and l.strip() != "Name"]
+                if lines:
+                    return lines[0]
+        except Exception:
+            pass
+
+    # 回退到 platform.processor()
+    return platform.processor() or "Unknown"
+
+
+def _env_info() -> Dict[str, Any]:
+    info: Dict[str, Any] = {}
     try:
-        info["os"] = platform.platform()
-        cpu = platform.processor() or platform.uname().processor
-        info["cpu"] = cpu or ""
-        info["phys_cores"] = str(psutil.cpu_count(logical=False) or "")
-        info["log_cores"] = str(psutil.cpu_count(logical=True) or "")
-        info["numa_nodes"] = ""
-        info["cpu_percent_start"] = str(psutil.cpu_percent(interval=0.1))
+        # 执行时间
+        from datetime import datetime
+        info["execution_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 操作系统
+        info["os"] = platform.system()
+        info["os_version"] = platform.release()
+        info["os_full"] = platform.platform()
+
+        # CPU 信息
+        info["cpu_arch"] = platform.machine()  # x86_64, arm64, aarch64 等
+        info["cpu_model"] = _get_cpu_brand()   # Apple M2, Intel Xeon 等
+        info["cpu_phys_cores"] = psutil.cpu_count(logical=False) or 0
+        info["cpu_log_cores"] = psutil.cpu_count(logical=True) or 0
+        info["cpu_percent_before"] = round(psutil.cpu_percent(interval=0.1), 1)
+
+        # 内存信息（转换为 MB）
         vm = psutil.virtual_memory()
-        info["mem_total"] = str(vm.total)
-        info["mem_available"] = str(vm.available)
+        info["mem_total_mb"] = round(vm.total / (1024 * 1024), 2)
+        info["mem_available_mb"] = round(vm.available / (1024 * 1024), 2)
+        info["mem_percent_used"] = vm.percent
+
+        # 主机名
+        info["hostname"] = platform.node()
+
     except Exception:
         pass
     return info
@@ -609,7 +672,8 @@ async def run_template(
     report_path = report_dir / "report_data.json"
     try:
         with open(report_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+            # 使用紧凑格式减小文件体积（无缩进，无多余空格）
+            json.dump(result, f, ensure_ascii=False, separators=(",", ":"))
         if job:
             result["report_data_file"] = str(report_path.relative_to(job.job_dir))
         else:
