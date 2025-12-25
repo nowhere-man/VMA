@@ -147,9 +147,29 @@ if not encoded_items:
     st.warning("报告中未包含任何 Encoded 数据。")
     st.stop()
 
+# ========== 侧边栏目录 ==========
+with st.sidebar:
+    st.markdown("### 📑 目录")
+    st.markdown("""
+- [Metrics](#metrics)
+  - [逐帧折线图](#逐帧折线图)
+- [Bitrate](#bitrate)
+  - [按时间间隔聚合的码率图](#按时间间隔聚合的码率图)
+  - [帧结构](#帧结构)
+""", unsafe_allow_html=True)
+
+# 平滑滚动 CSS
+st.markdown("""
+<style>
+html {
+    scroll-behavior: smooth;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ========== 1) Metrics ==========
-st.header("1) Metrics")
+st.header("Metrics", anchor="metrics")
 
 rows = []
 for item in encoded_items:
@@ -235,7 +255,7 @@ if len(df_metrics) >= 2:
     st.markdown("**Δ 相对于第一个 Encoded**")
     st.dataframe(diff_df, use_container_width=True, hide_index=True)
 
-st.subheader("逐帧折线图")
+st.subheader("逐帧折线图", anchor="逐帧折线图")
 
 tab_psnr, tab_ssim, tab_vmaf, tab_vmaf_neg = st.tabs(
     ["PSNR", "SSIM", "VMAF", "VMAF-NEG"]
@@ -321,7 +341,7 @@ with tab_vmaf_neg:
 
 
 # ========== 2) Bitrate ==========
-st.header("2) Bitrate")
+st.header("Bitrate", anchor="bitrate")
 
 bitrate_rows = []
 for item in encoded_items:
@@ -335,7 +355,7 @@ for item in encoded_items:
 
 st.dataframe(pd.DataFrame(bitrate_rows), use_container_width=True, hide_index=True)
 
-st.subheader("按时间间隔聚合的码率图")
+st.subheader("按时间间隔聚合的码率图", anchor="按时间间隔聚合的码率图")
 
 # 默认展示柱状图
 chart_type = st.selectbox("图形类型", ["柱状图", "折线图"], key="br_chart_type", index=0)
@@ -381,7 +401,7 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("帧结构：帧类型与帧大小（多个 Encoded 共用一张图）")
+st.subheader("帧结构", anchor="帧结构")
 st.caption("颜色提示：I/IDR=蓝, P=绿, B=橙, RAW/UNK=灰；多个 Encoded 叠加显示。")
 
 color_map = {

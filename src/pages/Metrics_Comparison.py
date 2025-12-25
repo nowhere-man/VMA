@@ -135,9 +135,33 @@ st.caption(
     f"码控: {report.get('rate_control')} | 点位: {', '.join(str(p) for p in report.get('bitrate_points') or [])}"
 )
 
+# ========== 侧边栏目录 ==========
+with st.sidebar:
+    st.markdown("### 📑 目录")
+    st.markdown("""
+- [Metrics](#metrics)
+  - [RD Curve](#rd-curve)
+  - [Delta](#delta)
+  - [Details](#details)
+- [BD-Rate](#bd-rate)
+- [BD-Metrics](#bd-metrics)
+- [码率分析](#码率分析)
+- [Performance](#performance)
+- [环境信息](#环境信息)
+""", unsafe_allow_html=True)
+
+# 平滑滚动 CSS
+st.markdown("""
+<style>
+html {
+    scroll-behavior: smooth;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ========== Metrics ==========
-st.header("Metrics")
+st.header("Metrics", anchor="metrics")
 
 rows = []
 for entry in entries:
@@ -170,7 +194,7 @@ if df_metrics.empty:
     st.stop()
 
 # RD Curve
-st.subheader("RD Curve")
+st.subheader("RD Curve", anchor="rd-curve")
 video_list = df_metrics["Video"].unique().tolist()
 metric_options = ["PSNR", "SSIM", "VMAF", "VMAF-NEG"]
 
@@ -257,7 +281,7 @@ if not merged.empty:
     diff_cols = ["Bitrate Δ%", "PSNR Δ", "SSIM Δ", "VMAF Δ", "VMAF-NEG Δ"]
     styled_df = diff_df.style.applymap(_color_diff, subset=diff_cols)
 
-    st.subheader("Delta")
+    st.subheader("Delta", anchor="delta")
     st.dataframe(
         styled_df,
         use_container_width=True,
@@ -268,13 +292,13 @@ if not merged.empty:
     )
 
 # 详细表格（默认折叠）
-st.subheader("Details")
+st.subheader("Details", anchor="details")
 with st.expander("查看详细Metrics数据", expanded=False):
     st.dataframe(df_metrics.sort_values(by=["Video", "RC", "Point", "Side"]), use_container_width=True, hide_index=True)
 
 
 # ========== BD-Rate ==========
-st.header("BD-Rate")
+st.header("BD-Rate", anchor="bd-rate")
 if bd_list:
     df_bd = pd.DataFrame(bd_list)
 
@@ -342,7 +366,7 @@ else:
 
 
 # ========== BD-Metrics ==========
-st.header("BD-Metrics")
+st.header("BD-Metrics", anchor="bd-metrics")
 if bd_list:
     df_bdm = pd.DataFrame(bd_list)
 
@@ -410,7 +434,7 @@ else:
 
 
 # ========== Bitrate 分析 ==========
-st.header("码率分析")
+st.header("码率分析", anchor="码率分析")
 
 # 构建可选的视频和点位列表
 video_point_options = []
@@ -534,11 +558,11 @@ else:
 
 
 # ========== Performance（占位） ==========
-st.header("Performance")
+st.header("Performance", anchor="performance")
 st.info("TODO: 后续加入 CPU 占用、FPS 以及编码时间统计对比。")
 
 # ========== 环境信息 ==========
-st.header("环境信息")
+st.header("环境信息", anchor="环境信息")
 env = report.get("environment") or {}
 if env:
     # 使用卡片式布局展示环境信息

@@ -250,7 +250,28 @@ if df.empty:
     st.stop()
 
 df = df.sort_values(by=["Video", "RC", "Point", "Side"])
-st.header("Metrics")
+
+# ========== 侧边栏目录 ==========
+with st.sidebar:
+    st.markdown("### 📑 目录")
+    st.markdown("""
+- [Metrics](#metrics)
+  - [A vs B 对比](#a-vs-b-对比)
+- [BD-Rate](#bd-rate)
+- [BD-Metrics](#bd-metrics)
+- [环境信息](#环境信息)
+""", unsafe_allow_html=True)
+
+# 平滑滚动 CSS
+st.markdown("""
+<style>
+html {
+    scroll-behavior: smooth;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.header("Metrics", anchor="metrics")
 st.dataframe(df, use_container_width=True, hide_index=True)
 
 base_df = df[df["Side"] == "A"]
@@ -262,7 +283,7 @@ if not merged.empty:
     merged["SSIM Δ"] = merged["SSIM_exp"] - merged["SSIM_base"]
     merged["VMAF Δ"] = merged["VMAF_exp"] - merged["VMAF_base"]
     merged["VMAF-NEG Δ"] = merged["VMAF-NEG_exp"] - merged["VMAF-NEG_base"]
-    st.subheader("A vs B 对比")
+    st.subheader("A vs B 对比", anchor="a-vs-b-对比")
     st.dataframe(
         merged[
             [
@@ -290,20 +311,20 @@ if not merged.empty:
         hide_index=True,
     )
 
-st.header("BD-Rate")
+st.header("BD-Rate", anchor="bd-rate")
 bd_rate_rows, bd_metric_rows = _build_bd_rows(merged)
 if bd_rate_rows:
     st.dataframe(pd.DataFrame(bd_rate_rows), use_container_width=True, hide_index=True)
 else:
     st.info("无法计算 BD-Rate（点位不足或缺少共同视频）。")
 
-st.header("BD-Metrics")
+st.header("BD-Metrics", anchor="bd-metrics")
 if bd_metric_rows:
     st.dataframe(pd.DataFrame(bd_metric_rows), use_container_width=True, hide_index=True)
 else:
     st.info("无法计算 BD-Metrics（点位不足或缺少共同视频）。")
 
-st.header("环境信息")
+st.header("环境信息", anchor="环境信息")
 env_a = data_a.get("environment") or {}
 env_b = data_b.get("environment") or {}
 if env_a or env_b:
