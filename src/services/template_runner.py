@@ -6,8 +6,10 @@
 import asyncio
 import json
 import platform
+import re
 import shlex
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -237,6 +239,174 @@ def _build_encode_cmd(
     return base
 
 
+@dataclass
+class PerformanceData:
+    """编码性能数据"""
+    encoding_fps: Optional[float] = None
+    avg_frame_time_ms: Optional[float] = None
+    total_encoding_time_s: Optional[float] = None
+    total_frames: Optional[int] = None
+    cpu_avg_percent: Optional[float] = None
+    cpu_max_percent: Optional[float] = None
+    cpu_samples: List[float] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        if self.encoding_fps is not None:
+            result["encoding_fps"] = round(self.encoding_fps, 2)
+        if self.avg_frame_time_ms is not None:
+            result["avg_frame_time_ms"] = round(self.avg_frame_time_ms, 2)
+        if self.total_encoding_time_s is not None:
+            result["total_encoding_time_s"] = round(self.total_encoding_time_s, 2)
+        if self.total_frames is not None:
+            result["total_frames"] = self.total_frames
+        if self.cpu_avg_percent is not None:
+            result["cpu_avg_percent"] = round(self.cpu_avg_percent, 2)
+        if self.cpu_max_percent is not None:
+            result["cpu_max_percent"] = round(self.cpu_max_percent, 2)
+        if self.cpu_samples:
+            result["cpu_samples"] = [round(s, 2) for s in self.cpu_samples]
+        return result
+
+
+def _parse_encoder_output(stderr: str, encoder_type: EncoderType) -> Tuple[Optional[int], Optional[float], Optional[float]]:
+    """
+    解析编码器输出，提取帧数、FPS、总时间
+    返回: (frames, fps, total_time_s)
+    """
+    frames: Optional[int] = None
+    fps: Optional[float] = None
+    total_time: Optional[float] = None
+
+    if encoder_type == EncoderType.FFMPEG:
+        # ffmpeg: frame= 300 fps=28.5 ...
+        # 取最后一个匹配（最终结果）
+        matches = re.findall(r"frame=\s*(\d+).*?fps=\s*([\d.]+)", stderr)
+        if matches:
+            last_match = matches[-1]
+            frames = int(last_match[0])
+            fps = float(last_match[1])
+            if fps > 0:
+                total_time = frames / fps
+    elif encoder_type == EncoderType.X264:
+        # x264: encoded 300 frames, 28.57 fps, 1234.56 kb/s
+        m = re.search(r"encoded\s+(\d+)\s+frames,\s+([\d.]+)\s+fps", stderr)
+        if m:
+            frames = int(m.group(1))
+            fps = float(m.group(2))
+            if fps > 0:
+                total_time = frames / fps
+    elif encoder_type in {EncoderType.X265, EncoderType.VVENC}:
+        # x265/vvenc: encoded 300 frames in 10.50s (28.57 fps), 1234.56 kb/s
+        m = re.search(r"encoded\s+(\d+)\s+frames\s+in\s+([\d.]+)s\s+\(([\d.]+)\s+fps\)", stderr)
+        if m:
+            frames = int(m.group(1))
+            total_time = float(m.group(2))
+            fps = float(m.group(3))
+
+    return frames, fps, total_time
+
+
+def _get_process_tree_cpu(proc: psutil.Process) -> float:
+    """获取进程树（父进程+所有子进程）的CPU占用率总和"""
+    total_cpu = 0.0
+    try:
+        # 父进程
+        total_cpu += proc.cpu_percent(interval=None)
+        # 所有子进程
+        for child in proc.children(recursive=True):
+            try:
+                total_cpu += child.cpu_percent(interval=None)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
+    return total_cpu
+
+
+async def _sample_cpu(pid: int, samples: List[float], stop_event: asyncio.Event) -> None:
+    """后台协程：每100ms采样一次CPU占用率"""
+    cpu_count = psutil.cpu_count() or 1
+    try:
+        proc = psutil.Process(pid)
+        # 预热：第一次调用返回0，需要跳过
+        _get_process_tree_cpu(proc)
+        await asyncio.sleep(0.1)
+
+        while not stop_event.is_set():
+            try:
+                raw_cpu = _get_process_tree_cpu(proc)
+                # 归一化到 0-100%
+                normalized = raw_cpu / cpu_count
+                samples.append(normalized)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                break
+            await asyncio.sleep(0.1)
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
+
+
+async def _run_encode_with_perf(
+    cmd: List[str],
+    encoder_type: EncoderType,
+) -> Tuple[int, bytes, bytes, PerformanceData]:
+    """
+    运行编码命令并采集性能数据
+    返回: (returncode, stdout, stderr, performance_data)
+    """
+    perf = PerformanceData()
+    cpu_samples: List[float] = []
+    stop_event = asyncio.Event()
+
+    # 启动编码进程
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+
+    # 启动CPU采样协程
+    sample_task = asyncio.create_task(_sample_cpu(proc.pid, cpu_samples, stop_event))
+
+    # 记录开始时间
+    start_time = time.time()
+
+    # 等待编码完成
+    stdout, stderr = await proc.communicate()
+
+    # 记录结束时间
+    end_time = time.time()
+
+    # 停止CPU采样
+    stop_event.set()
+    await sample_task
+
+    # 解析编码器输出
+    stderr_str = stderr.decode(errors="ignore")
+    frames, fps, total_time = _parse_encoder_output(stderr_str, encoder_type)
+
+    # 填充性能数据
+    if frames is not None:
+        perf.total_frames = frames
+    if fps is not None and fps > 0:
+        perf.encoding_fps = fps
+        perf.avg_frame_time_ms = 1000.0 / fps
+    if total_time is not None:
+        perf.total_encoding_time_s = total_time
+    elif fps and frames:
+        perf.total_encoding_time_s = frames / fps
+
+    # 如果没有从日志解析到时间，使用外部计时
+    if perf.total_encoding_time_s is None:
+        perf.total_encoding_time_s = end_time - start_time
+
+    # CPU数据
+    if cpu_samples:
+        perf.cpu_samples = cpu_samples
+        perf.cpu_avg_percent = sum(cpu_samples) / len(cpu_samples)
+        perf.cpu_max_percent = max(cpu_samples)
+
+    return proc.returncode or 0, stdout, stderr, perf
+
+
 def _bd_metrics(rate1: List[float], metric1: List[float], rate2: List[float], metric2: List[float], piecewise: int = 0) -> Optional[float]:
     if len(rate1) < 4 or len(rate2) < 4:
         return None
@@ -387,19 +557,28 @@ async def _encode_side(
     sources: List[SourceInfo],
     recompute: bool,
     job=None,
-) -> Dict[str, List[Path]]:
+) -> Tuple[Dict[str, List[Path]], Dict[str, List[PerformanceData]]]:
+    """
+    编码一侧（Baseline 或 Experimental）的所有源文件
+    返回: (outputs, performance_data)
+        - outputs: {source_stem: [encoded_path, ...]}
+        - performance_data: {source_stem: [PerformanceData, ...]}
+    """
     outputs: Dict[str, List[Path]] = {}
+    perf_data: Dict[str, List[PerformanceData]] = {}
     side_dir = Path(side.bitstream_dir)
     side_dir.mkdir(parents=True, exist_ok=True)
 
     for src in sources:
         file_outputs: List[Path] = []
+        file_perfs: List[PerformanceData] = []
         for val in side.bitrate_points or []:
             if side.skip_encode:
                 stem = _build_output_stem(src.path, side.rate_control.value if side.rate_control else "rc", val)
                 matches = list(side_dir.glob(f"{stem}.*"))
                 if matches:
                     file_outputs.append(matches[0])
+                    file_perfs.append(PerformanceData())  # 跳过编码时无性能数据
                     continue
                 raise FileNotFoundError(f"缺少码流: {stem}")
             stem = _build_output_stem(src.path, side.rate_control.value if side.rate_control else "rc", val)
@@ -407,21 +586,24 @@ async def _encode_side(
             out_path = side_dir / f"{stem}{ext}"
             if not recompute and out_path.exists():
                 file_outputs.append(out_path)
+                file_perfs.append(PerformanceData())  # 复用已有码流时无性能数据
                 continue
 
             cmd = _build_encode_cmd(side.encoder_type, side.encoder_params or "", side.rate_control.value, val, src, out_path)
             log = _start_command(job, "encode", cmd, src.path)
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            _, stderr = await proc.communicate()
-            if proc.returncode != 0:
+
+            # 使用带性能采集的编码函数
+            returncode, _, stderr, perf = await _run_encode_with_perf(cmd, side.encoder_type)
+
+            if returncode != 0:
                 _finish_command(job, log, CommandStatus.FAILED, error=stderr.decode(errors="ignore"))
                 raise RuntimeError(f"编码失败 {out_path.name}: {stderr.decode(errors='ignore')}")
             _finish_command(job, log, CommandStatus.COMPLETED)
             file_outputs.append(out_path)
+            file_perfs.append(perf)
         outputs[src.path.stem] = file_outputs
-    return outputs
+        perf_data[src.path.stem] = file_perfs
+    return outputs, perf_data
 
 
 def _extract_bitrate_point(path: Path) -> Optional[float]:
@@ -498,7 +680,7 @@ async def run_template(
         return any(p.glob("*")) if p.exists() else False
 
     baseline_needed = (not template.metadata.baseline_computed) or (not _has_files(Path(template.metadata.baseline.bitstream_dir)))
-    baseline_outputs = await _encode_side(
+    baseline_outputs, baseline_perfs = await _encode_side(
         template.metadata.baseline,
         ordered_sources,
         recompute=baseline_needed,
@@ -508,7 +690,7 @@ async def run_template(
     template.metadata.baseline_fingerprint = _fingerprint(template.metadata.baseline)
 
     # Experimental 编码/校验
-    exp_outputs = await _encode_side(
+    exp_outputs, exp_perfs = await _encode_side(
         template.metadata.experimental,
         [exp_map[s.path.stem] for s in ordered_sources],
         recompute=True,
@@ -629,6 +811,26 @@ async def run_template(
                 "bd_vmaf_neg": _pair_metrics("vmaf_neg"),
             }
         )
+
+        # 将性能数据添加到 summary 的 encoded 列表中
+        base_perf_list = baseline_perfs.get(key, [])
+        exp_perf_list = exp_perfs.get(key, [])
+
+        # 为 baseline encoded 添加性能数据
+        if base_summary and "encoded" in base_summary:
+            for i, enc_item in enumerate(base_summary["encoded"]):
+                if i < len(base_perf_list):
+                    perf_dict = base_perf_list[i].to_dict()
+                    if perf_dict:  # 只有有数据时才添加
+                        enc_item["performance"] = perf_dict
+
+        # 为 experimental encoded 添加性能数据
+        if exp_summary and "encoded" in exp_summary:
+            for i, enc_item in enumerate(exp_summary["encoded"]):
+                if i < len(exp_perf_list):
+                    perf_dict = exp_perf_list[i].to_dict()
+                    if perf_dict:  # 只有有数据时才添加
+                        enc_item["performance"] = perf_dict
 
         report_entries.append(
             {

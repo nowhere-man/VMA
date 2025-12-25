@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import scipy.interpolate  # type: ignore
 import streamlit as st
 
@@ -144,8 +145,10 @@ def _bd_metrics(rate1: List[float], metric1: List[float], rate2: List[float], me
     return avg_diff
 
 
-def _build_rows(data: Dict[str, Any], side_label: str) -> List[Dict[str, Any]]:
+def _build_rows(data: Dict[str, Any], side_label: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """构建指标数据行和性能数据行"""
     rows: List[Dict[str, Any]] = []
+    perf_rows: List[Dict[str, Any]] = []
     entries = data.get("entries") or []
     for entry in entries:
         video = entry.get("source")
@@ -165,7 +168,21 @@ def _build_rows(data: Dict[str, Any], side_label: str) -> List[Dict[str, Any]]:
                     "VMAF-NEG": _metric_value(metrics, "vmaf_neg", "vmaf_neg_mean") or _metric_value(metrics, "vmaf", "vmaf_neg_mean"),
                 }
             )
-    return rows
+            # 提取性能数据
+            perf = item.get("performance") or {}
+            if perf:
+                perf_rows.append({
+                    "Video": video,
+                    "Side": side_label,
+                    "Point": val,
+                    "FPS": perf.get("encoding_fps"),
+                    "CPU Avg(%)": perf.get("cpu_avg_percent"),
+                    "CPU Max(%)": perf.get("cpu_max_percent"),
+                    "Total Time(s)": perf.get("total_encoding_time_s"),
+                    "Frames": perf.get("total_frames"),
+                    "cpu_samples": perf.get("cpu_samples", []),
+                })
+    return rows, perf_rows
 
 
 def _build_bd_rows(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -243,7 +260,10 @@ if not job_a or not job_b:
 data_a = _load_analyse(job_a)
 data_b = _load_analyse(job_b)
 
-rows = _build_rows(data_a, "A") + _build_rows(data_b, "B")
+rows_a, perf_rows_a = _build_rows(data_a, "A")
+rows_b, perf_rows_b = _build_rows(data_b, "B")
+rows = rows_a + rows_b
+perf_rows = perf_rows_a + perf_rows_b
 df = pd.DataFrame(rows)
 if df.empty:
     st.warning("没有可用于对比的指标数据。")
@@ -259,6 +279,10 @@ with st.sidebar:
   - [A vs B 对比](#a-vs-b-对比)
 - [BD-Rate](#bd-rate)
 - [BD-Metrics](#bd-metrics)
+- [Performance](#performance)
+  - [Diff](#perf-diff)
+  - [CPU占用折线图](#cpu-chart)
+  - [详细数据](#perf-details)
 - [环境信息](#环境信息)
 """, unsafe_allow_html=True)
 
@@ -323,6 +347,166 @@ if bd_metric_rows:
     st.dataframe(pd.DataFrame(bd_metric_rows), use_container_width=True, hide_index=True)
 else:
     st.info("无法计算 BD-Metrics（点位不足或缺少共同视频）。")
+
+# ========== Performance ==========
+st.header("Performance", anchor="performance")
+
+if perf_rows:
+    df_perf = pd.DataFrame(perf_rows)
+
+    # 1. 汇总Diff表格
+    st.subheader("Diff", anchor="perf-diff")
+    base_perf = df_perf[df_perf["Side"] == "A"]
+    exp_perf = df_perf[df_perf["Side"] == "B"]
+    merged_perf = base_perf.merge(
+        exp_perf,
+        on=["Video", "Point"],
+        suffixes=("_base", "_exp"),
+    )
+    if not merged_perf.empty:
+        merged_perf["Δ FPS"] = merged_perf["FPS_exp"] - merged_perf["FPS_base"]
+        merged_perf["Δ CPU Avg(%)"] = merged_perf["CPU Avg(%)_exp"] - merged_perf["CPU Avg(%)_base"]
+
+        diff_perf_df = merged_perf[
+            ["Video", "Point", "FPS_base", "FPS_exp", "Δ FPS", "CPU Avg(%)_base", "CPU Avg(%)_exp", "Δ CPU Avg(%)"]
+        ].rename(columns={
+            "FPS_base": "A FPS",
+            "FPS_exp": "B FPS",
+            "CPU Avg(%)_base": "A CPU(%)",
+            "CPU Avg(%)_exp": "B CPU(%)",
+        }).sort_values(by=["Video", "Point"]).reset_index(drop=True)
+
+        # 合并同一视频的名称
+        prev_video = None
+        for idx in diff_perf_df.index:
+            if diff_perf_df.at[idx, "Video"] == prev_video:
+                diff_perf_df.at[idx, "Video"] = ""
+            else:
+                prev_video = diff_perf_df.at[idx, "Video"]
+
+        def _color_perf_diff(val):
+            if pd.isna(val) or not isinstance(val, (int, float)):
+                return ""
+            if val > 0:
+                return "color: green"
+            elif val < 0:
+                return "color: red"
+            return ""
+
+        styled_perf = diff_perf_df.style.applymap(_color_perf_diff, subset=["Δ FPS", "Δ CPU Avg(%)"])
+        st.dataframe(styled_perf, use_container_width=True, hide_index=True)
+
+    # 2. CPU折线图
+    st.subheader("CPU占用折线图", anchor="cpu-chart")
+
+    # 选择视频和点位
+    video_list_perf = df_perf["Video"].unique().tolist()
+    col_sel_perf1, col_sel_perf2 = st.columns(2)
+    with col_sel_perf1:
+        selected_video_perf = st.selectbox("选择视频", video_list_perf, key="perf_video")
+    with col_sel_perf2:
+        point_list_perf = df_perf[df_perf["Video"] == selected_video_perf]["Point"].unique().tolist()
+        selected_point_perf = st.selectbox("选择码率点位", point_list_perf, key="perf_point")
+
+    # 聚合间隔选择
+    agg_interval = st.slider("聚合间隔 (ms)", min_value=100, max_value=1000, value=100, step=100, key="cpu_agg")
+
+    # 获取对应的CPU采样数据
+    base_samples: List[float] = []
+    exp_samples: List[float] = []
+    for _, row in df_perf.iterrows():
+        if row["Video"] == selected_video_perf and row["Point"] == selected_point_perf:
+            if row["Side"] == "A":
+                base_samples = row.get("cpu_samples", []) or []
+            else:
+                exp_samples = row.get("cpu_samples", []) or []
+
+    def _aggregate_samples(samples: List[float], interval_ms: int) -> Tuple[List[float], List[float]]:
+        """聚合CPU采样数据"""
+        if not samples:
+            return [], []
+        # 原始采样间隔为100ms
+        step = interval_ms // 100
+        if step <= 1:
+            # 不聚合
+            x = [i * 0.1 for i in range(len(samples))]
+            return x, samples
+        # 聚合
+        agg_samples = []
+        for i in range(0, len(samples), step):
+            chunk = samples[i:i+step]
+            if chunk:
+                agg_samples.append(sum(chunk) / len(chunk))
+        x = [i * (interval_ms / 1000) for i in range(len(agg_samples))]
+        return x, agg_samples
+
+    if base_samples or exp_samples:
+        base_x, base_y = _aggregate_samples(base_samples, agg_interval)
+        exp_x, exp_y = _aggregate_samples(exp_samples, agg_interval)
+
+        fig_cpu = go.Figure()
+
+        # A 折线
+        if base_y:
+            fig_cpu.add_trace(go.Scatter(
+                x=base_x, y=base_y,
+                mode="lines",
+                name="A",
+                line=dict(color="#2563eb", width=2),
+            ))
+            # 标记最大值
+            if base_y:
+                max_idx = base_y.index(max(base_y))
+                fig_cpu.add_trace(go.Scatter(
+                    x=[base_x[max_idx]], y=[base_y[max_idx]],
+                    mode="markers+text",
+                    name="A Max",
+                    marker=dict(color="#2563eb", size=12, symbol="star"),
+                    text=[f"Max: {base_y[max_idx]:.1f}%"],
+                    textposition="top center",
+                    showlegend=False,
+                ))
+
+        # B 折线
+        if exp_y:
+            fig_cpu.add_trace(go.Scatter(
+                x=exp_x, y=exp_y,
+                mode="lines",
+                name="B",
+                line=dict(color="#dc2626", width=2),
+            ))
+            # 标记最大值
+            if exp_y:
+                max_idx = exp_y.index(max(exp_y))
+                fig_cpu.add_trace(go.Scatter(
+                    x=[exp_x[max_idx]], y=[exp_y[max_idx]],
+                    mode="markers+text",
+                    name="B Max",
+                    marker=dict(color="#dc2626", size=12, symbol="star"),
+                    text=[f"Max: {exp_y[max_idx]:.1f}%"],
+                    textposition="top center",
+                    showlegend=False,
+                ))
+
+        fig_cpu.update_layout(
+            title=f"CPU占用率 - {selected_video_perf} ({selected_point_perf})",
+            xaxis_title="Time (s)",
+            yaxis_title="CPU (%)",
+            hovermode="x unified",
+            legend=dict(orientation="h", y=-0.15),
+        )
+        st.plotly_chart(fig_cpu, use_container_width=True)
+    else:
+        st.info("该视频/点位没有CPU采样数据。")
+
+    # 3. 详细数据表格（默认折叠）
+    st.subheader("详细数据", anchor="perf-details")
+    with st.expander("查看详细性能数据", expanded=False):
+        # 移除 cpu_samples 列用于展示
+        df_perf_detail = df_perf.drop(columns=["cpu_samples"], errors="ignore")
+        st.dataframe(df_perf_detail.sort_values(by=["Video", "Point", "Side"]), use_container_width=True, hide_index=True)
+else:
+    st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
 
 st.header("环境信息", anchor="环境信息")
 env_a = data_a.get("environment") or {}

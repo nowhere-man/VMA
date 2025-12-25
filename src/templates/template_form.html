@@ -32,6 +32,16 @@
       </div>
     </div>
 
+    <!-- 公共源视频目录（仅 Metrics对比 模式显示） -->
+    <div id="common_source_section" class="space-y-4 border-t pt-6">
+      <h2 class="text-lg font-semibold text-gray-900">输入设置</h2>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">源视频目录<span class="text-red-500">*</span></label>
+        <input id="common_source_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
+        <p class="text-xs text-gray-500 mt-1">Baseline 和 Experimental 共用此源视频目录。YUV文件名格式需满足：stream_wxh_fps.yuv。</p>
+      </div>
+    </div>
+
     <!-- Baseline / 单侧 -->
     <div class="space-y-4 border-t pt-6">
       <div class="flex items-center justify-between">
@@ -41,19 +51,15 @@
           <span>跳过视频编码</span>
         </label>
       </div>
-      <div class="grid md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">源视频目录<span class="text-red-500">*</span></label>
-          <input id="baseline_source_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
-          <p class="text-xs text-gray-500 mt-1">YUV文件名格式需满足：stream_wxh_fps.yuv。</p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
-          <input id="baseline_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
-        </div>
+      <!-- Metrics分析模式下的源视频目录 -->
+      <div id="baseline_source_section" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">源视频目录<span class="text-red-500">*</span></label>
+        <input id="baseline_source_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+        <p class="text-xs text-gray-500 mt-1">YUV文件名格式需满足：stream_wxh_fps.yuv。</p>
       </div>
       <div id="baseline_encode_block" class="space-y-4">
-        <div class="grid md:grid-cols-3 gap-4">
+        <!-- 第一行：编码器类型 + 编码器路径 -->
+        <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">编码器类型<span class="text-red-500">*</span></label>
             <select id="baseline_encoder_type" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
@@ -64,6 +70,18 @@
               <option value="vvenc">VVenC</option>
             </select>
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">编码器路径</label>
+            <input id="baseline_encoder_path" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="可选，留空则使用系统默认路径" />
+          </div>
+        </div>
+        <!-- 第二行：编码参数 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">编码参数<span class="text-red-500">*</span></label>
+          <input id="baseline_encoder_params" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <!-- 第三行：RC + 码率点位 -->
+        <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">RC<span class="text-red-500">*</span></label>
             <select id="baseline_rate_control" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
@@ -77,9 +95,10 @@
             <input id="baseline_bitrate_points" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="如：21,24,27,29" />
           </div>
         </div>
+        <!-- 第四行：码流目录 -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">编码参数<span class="text-red-500">*</span></label>
-          <input id="baseline_encoder_params" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+          <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
+          <input id="baseline_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
         </div>
       </div>
     </div>
@@ -93,19 +112,9 @@
           <span>跳过视频编码</span>
         </label>
       </div>
-      <div class="grid md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">源视频目录<span class="text-red-500">*</span></label>
-          <input id="exp_source_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
-          <p class="text-xs text-gray-500 mt-1">YUV文件名格式需满足：stream_wxh_fps.yuv。</p>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
-          <input id="exp_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
-        </div>
-      </div>
       <div id="exp_encode_block" class="space-y-4">
-        <div class="grid md:grid-cols-3 gap-4">
+        <!-- 第一行：编码器类型 + 编码器路径 -->
+        <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">编码器类型<span class="text-red-500">*</span></label>
             <select id="exp_encoder_type" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
@@ -116,6 +125,18 @@
               <option value="vvenc">VVenC</option>
             </select>
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">编码器路径</label>
+            <input id="exp_encoder_path" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="可选，留空则使用系统默认路径" />
+          </div>
+        </div>
+        <!-- 第二行：编码参数 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">编码参数<span class="text-red-500">*</span></label>
+          <input id="exp_encoder_params" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <!-- 第三行：RC + 码率点位 -->
+        <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">RC<span class="text-red-500">*</span></label>
             <select id="exp_rate_control" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
@@ -129,9 +150,10 @@
             <input id="exp_bitrate_points" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="如：21,24,27,29" />
           </div>
         </div>
+        <!-- 第四行：码流目录 -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">编码参数<span class="text-red-500">*</span></label>
-          <input id="exp_encoder_params" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+          <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
+          <input id="exp_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
         </div>
       </div>
     </div>
@@ -168,6 +190,8 @@ const expEncode = $('exp_encode_block');
 const templateTypeSelect = $('template_type');
 const expSection = $('exp_section');
 const baselineTitle = $('baseline_title');
+const commonSourceSection = $('common_source_section');
+const baselineSourceSection = $('baseline_source_section');
 
 function toggleBlocks() {
   baselineEncode.classList.toggle('hidden', baselineSkip.checked);
@@ -181,9 +205,13 @@ function applyTypeUI(type) {
   if (type === 'metrics_analysis') {
     expSection.classList.add('hidden');
     baselineTitle.textContent = '编码配置';
+    commonSourceSection.classList.add('hidden');
+    baselineSourceSection.classList.remove('hidden');
   } else {
     expSection.classList.remove('hidden');
     baselineTitle.textContent = 'Baseline 对照组';
+    commonSourceSection.classList.remove('hidden');
+    baselineSourceSection.classList.add('hidden');
   }
 }
 templateTypeSelect.addEventListener('change', () => applyTypeUI(templateTypeSelect.value));
@@ -195,10 +223,18 @@ function parsePoints(val) {
 }
 
 function collectSide(prefix) {
+  const type = templateTypeSelect.value;
+  let sourceDir = '';
+  if (type === 'metrics_analysis') {
+    sourceDir = $(prefix + '_source_dir')?.value.trim() || '';
+  } else {
+    sourceDir = $('common_source_dir')?.value.trim() || '';
+  }
   return {
     skip_encode: $(prefix + '_skip').checked,
-    source_dir: $(prefix + '_source_dir').value.trim(),
+    source_dir: sourceDir,
     encoder_type: $(prefix + '_encoder_type').value || null,
+    encoder_path: $(prefix + '_encoder_path')?.value.trim() || null,
     encoder_params: $(prefix + '_encoder_params').value.trim() || null,
     rate_control: $(prefix + '_rate_control').value || null,
     bitrate_points: parsePoints($(prefix + '_bitrate_points').value),
@@ -231,12 +267,17 @@ async function loadTemplate() {
       $(prefix + '_bitstream_dir').value = side.bitstream_dir || '';
       $(prefix + '_skip').checked = !!side.skip_encode;
       $(prefix + '_encoder_type').value = side.encoder_type || '';
+      $(prefix + '_encoder_path').value = side.encoder_path || '';
       $(prefix + '_encoder_params').value = side.encoder_params || '';
       $(prefix + '_rate_control').value = side.rate_control || '';
       $(prefix + '_bitrate_points').value = (side.bitrate_points || []).join(',');
     };
     fill('baseline', data.baseline);
     fill('exp', data.experimental);
+    // 对比模式下，填充公共源视频目录
+    if (data.template_type === 'comparison' && data.baseline?.source_dir) {
+      $('common_source_dir').value = data.baseline.source_dir || '';
+    }
     toggleBlocks();
     if (READONLY) setReadonlyMode();
   } catch (e) {
