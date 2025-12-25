@@ -1,4 +1,4 @@
-# VMR - Video Metrics Reporter
+# VMA - Video Metrics Analyzer
 
 A video quality analysis tool for comparing video encoders using quality metrics and performance benchmarks.
 
@@ -20,7 +20,7 @@ A video quality analysis tool for comparing video encoders using quality metrics
 
 ```bash
 # Clone the repository
-git clone https://github.com/liushaojie/VMR.git
+git clone https://github.com/nowhere-man/VMA.git
 cd VMR
 
 # Create virtual environment and install dependencies
