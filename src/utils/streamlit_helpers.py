@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -188,8 +189,8 @@ def create_cpu_chart(
     title: str,
     base_label: str = "Baseline",
     exp_label: str = "Test",
-    base_color: str = "#2563eb",
-    exp_color: str = "#dc2626",
+    base_color: str = "#636efa",
+    exp_color: str = "#f0553b",
 ) -> go.Figure:
     """
     创建 CPU 占用率对比图表
@@ -261,6 +262,110 @@ def create_cpu_chart(
     )
 
     return fig
+
+
+def create_fps_chart(
+    df_perf: "pd.DataFrame",
+    base_label: str = "Baseline",
+    exp_label: str = "Test",
+    base_color: str = "#636efa",
+    exp_color: str = "#f0553b",
+) -> go.Figure:
+    """
+    创建 FPS 对比图表
+
+    Args:
+        df_perf: 性能数据 DataFrame，包含 Video, Side, Point, FPS 列
+        base_label: 基准组标签
+        exp_label: 实验组标签
+        base_color: 基准组颜色
+        exp_color: 实验组颜色
+
+    Returns:
+        Plotly Figure 对象
+    """
+    # 按 Video 和 Point 排序
+    df_sorted = df_perf.sort_values(by=["Video", "Point"])
+
+    # 创建 x 轴标签：Video_Point
+    df_sorted["x_label"] = df_sorted["Video"].astype(str) + "_" + df_sorted["Point"].astype(str)
+
+    # 分离 baseline 和 test 数据
+    base_data = df_sorted[df_sorted["Side"] == base_label]
+    exp_data = df_sorted[df_sorted["Side"] == exp_label]
+
+    fig = go.Figure()
+
+    # Baseline 折线
+    if not base_data.empty:
+        fig.add_trace(go.Scatter(
+            x=base_data["x_label"],
+            y=base_data["FPS"],
+            mode="lines+markers",
+            name=base_label,
+            line=dict(color=base_color, width=2),
+            marker=dict(size=8),
+        ))
+
+    # Test 折线
+    if not exp_data.empty:
+        fig.add_trace(go.Scatter(
+            x=exp_data["x_label"],
+            y=exp_data["FPS"],
+            mode="lines+markers",
+            name=exp_label,
+            line=dict(color=exp_color, width=2),
+            marker=dict(size=8),
+        ))
+
+    fig.update_layout(
+        title="FPS 对比",
+        xaxis_title="Video_Point",
+        yaxis_title="FPS",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        xaxis=dict(tickangle=-45),
+    )
+
+    return fig
+
+
+def color_positive_green(val):
+    """
+    正值显示绿色，负值显示红色（用于 FPS 等越大越好的指标）
+
+    Args:
+        val: 数值
+
+    Returns:
+        CSS 样式字符串
+    """
+    if pd.isna(val) or not isinstance(val, (int, float)):
+        return ""
+    if val > 0:
+        return "color: green"
+    elif val < 0:
+        return "color: red"
+    return ""
+
+
+def color_positive_red(val):
+    """
+    正值显示红色，负值显示绿色（用于 CPU、Bitrate 等越小越好的指标）
+
+    Args:
+        val: 数值
+
+    Returns:
+        CSS 样式字符串
+    """
+    if pd.isna(val) or not isinstance(val, (int, float)):
+        return ""
+    if val > 0:
+        return "color: red"
+    elif val < 0:
+        return "color: green"
+    return ""
 
 
 def format_env_info(env: Dict[str, Any]) -> str:

@@ -25,6 +25,9 @@ from src.utils.streamlit_helpers import (
     load_json_report,
     parse_rate_point as _parse_point,
     create_cpu_chart,
+    create_fps_chart,
+    color_positive_green,
+    color_positive_red,
     format_env_info,
 )
 
@@ -184,7 +187,8 @@ with st.sidebar:
 - [Performance](#performance)
   - [Delta](#perf-diff)
   - [CPU Usage](#cpu-chart)
-  - [Detalis](#perf-details)
+  - [FPS](#fps-chart)
+  - [Details](#perf-details)
 - [Machine Info](#环境信息)
 """, unsafe_allow_html=True)
 
@@ -198,7 +202,19 @@ html {
 """, unsafe_allow_html=True)
 
 st.header("Metrics", anchor="metrics")
-st.dataframe(df, use_container_width=True, hide_index=True)
+
+# 格式化精度
+metrics_format = {
+    "Point": "{:.2f}",
+    "Bitrate_kbps": "{:.2f}",
+    "PSNR": "{:.4f}",
+    "SSIM": "{:.4f}",
+    "VMAF": "{:.2f}",
+    "VMAF-NEG": "{:.2f}",
+}
+
+styled_metrics = df.style.format(metrics_format, na_rep="-")
+st.dataframe(styled_metrics, use_container_width=True, hide_index=True)
 
 base_df = df[df["Side"] == "A"]
 exp_df = df[df["Side"] == "B"]
@@ -210,29 +226,52 @@ if not merged.empty:
     merged["VMAF Δ"] = merged["VMAF_exp"] - merged["VMAF_base"]
     merged["VMAF-NEG Δ"] = merged["VMAF-NEG_exp"] - merged["VMAF-NEG_base"]
     st.subheader("A vs B 对比", anchor="a-vs-b-对比")
+
+    # 格式化精度
+    comparison_format = {
+        "Point": "{:.2f}",
+        "Bitrate_kbps_base": "{:.2f}",
+        "Bitrate_kbps_exp": "{:.2f}",
+        "Bitrate Δ%": "{:.2f}",
+        "PSNR_base": "{:.4f}",
+        "PSNR_exp": "{:.4f}",
+        "PSNR Δ": "{:.4f}",
+        "SSIM_base": "{:.4f}",
+        "SSIM_exp": "{:.4f}",
+        "SSIM Δ": "{:.4f}",
+        "VMAF_base": "{:.2f}",
+        "VMAF_exp": "{:.2f}",
+        "VMAF Δ": "{:.2f}",
+        "VMAF-NEG_base": "{:.2f}",
+        "VMAF-NEG_exp": "{:.2f}",
+        "VMAF-NEG Δ": "{:.2f}",
+    }
+
+    styled_comparison = merged[
+        [
+            "Video",
+            "RC",
+            "Point",
+            "Bitrate_kbps_base",
+            "Bitrate_kbps_exp",
+            "Bitrate Δ%",
+            "PSNR_base",
+            "PSNR_exp",
+            "PSNR Δ",
+            "SSIM_base",
+            "SSIM_exp",
+            "SSIM Δ",
+            "VMAF_base",
+            "VMAF_exp",
+            "VMAF Δ",
+            "VMAF-NEG_base",
+            "VMAF-NEG_exp",
+            "VMAF-NEG Δ",
+        ]
+    ].sort_values(by=["Video", "Point"]).style.format(comparison_format, na_rep="-")
+
     st.dataframe(
-        merged[
-            [
-                "Video",
-                "RC",
-                "Point",
-                "Bitrate_kbps_base",
-                "Bitrate_kbps_exp",
-                "Bitrate Δ%",
-                "PSNR_base",
-                "PSNR_exp",
-                "PSNR Δ",
-                "SSIM_base",
-                "SSIM_exp",
-                "SSIM Δ",
-                "VMAF_base",
-                "VMAF_exp",
-                "VMAF Δ",
-                "VMAF-NEG_base",
-                "VMAF-NEG_exp",
-                "VMAF-NEG Δ",
-            ]
-        ].sort_values(by=["Video", "Point"]),
+        styled_comparison,
         use_container_width=True,
         hide_index=True,
     )
@@ -286,16 +325,18 @@ if perf_rows:
             else:
                 prev_video = diff_perf_df.at[idx, "Video"]
 
-        def _color_perf_diff(val):
-            if pd.isna(val) or not isinstance(val, (int, float)):
-                return ""
-            if val > 0:
-                return "color: green"
-            elif val < 0:
-                return "color: red"
-            return ""
+        # 格式化精度：Point、FPS 和 CPU 都保留2位小数
+        perf_format_dict = {
+            "Point": "{:.2f}",
+            "A FPS": "{:.2f}",
+            "B FPS": "{:.2f}",
+            "Δ FPS": "{:.2f}",
+            "A CPU(%)": "{:.2f}",
+            "B CPU(%)": "{:.2f}",
+            "Δ CPU Avg(%)": "{:.2f}",
+        }
 
-        styled_perf = diff_perf_df.style.applymap(_color_perf_diff, subset=["Δ FPS", "Δ CPU Avg(%)"])
+        styled_perf = diff_perf_df.style.applymap(color_positive_green, subset=["Δ FPS"]).applymap(color_positive_red, subset=["Δ CPU Avg(%)"]).format(perf_format_dict, na_rep="-")
         st.dataframe(styled_perf, use_container_width=True, hide_index=True)
 
     # 2. CPU折线图
@@ -333,15 +374,42 @@ if perf_rows:
             exp_label="B",
         )
         st.plotly_chart(fig_cpu, use_container_width=True)
+
+        # 显示平均CPU占用率对比
+        base_avg_cpu = sum(base_samples) / len(base_samples) if base_samples else 0
+        exp_avg_cpu = sum(exp_samples) / len(exp_samples) if exp_samples else 0
+        cpu_diff_pct = ((exp_avg_cpu - base_avg_cpu) / base_avg_cpu * 100) if base_avg_cpu > 0 else 0
+
+        col_cpu1, col_cpu2, col_cpu3 = st.columns(3)
+        col_cpu1.metric("A Average CPU Usage", f"{base_avg_cpu:.2f}%")
+        col_cpu2.metric("B Average CPU Usage", f"{exp_avg_cpu:.2f}%")
+        col_cpu3.metric("CPU Usage 差异", f"{cpu_diff_pct:+.2f}%", delta=f"{cpu_diff_pct:+.2f}%", delta_color="inverse")
     else:
         st.info("该视频/点位没有CPU采样数据。")
 
-    # 3. 详细数据表格（默认折叠）
+    # 3. FPS 对比图
+    st.subheader("FPS", anchor="fps-chart")
+    fig_fps = create_fps_chart(
+        df_perf=df_perf,
+        base_label="A",
+        exp_label="B",
+    )
+    st.plotly_chart(fig_fps, use_container_width=True)
+
+    # 4. 详细数据表格（默认折叠）
     st.subheader("Details", anchor="perf-details")
     with st.expander("查看详细性能数据", expanded=False):
         # 移除 cpu_samples 列用于展示
         df_perf_detail = df_perf.drop(columns=["cpu_samples"], errors="ignore")
-        st.dataframe(df_perf_detail.sort_values(by=["Video", "Point", "Side"]), use_container_width=True, hide_index=True)
+        # 格式化精度
+        perf_detail_format = {
+            "Point": "{:.2f}",
+            "FPS": "{:.2f}",
+            "CPU Avg(%)": "{:.2f}",
+            "CPU Max(%)": "{:.2f}",
+        }
+        styled_perf_detail = df_perf_detail.sort_values(by=["Video", "Point", "Side"]).style.format(perf_detail_format, na_rep="-")
+        st.dataframe(styled_perf_detail, use_container_width=True, hide_index=True)
 else:
     st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
 

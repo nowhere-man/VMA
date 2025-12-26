@@ -26,6 +26,9 @@ from src.utils.streamlit_helpers import (
     load_json_report,
     parse_rate_point as _parse_point,
     create_cpu_chart,
+    create_fps_chart,
+    color_positive_green,
+    color_positive_red,
     format_env_info,
 )
 
@@ -119,6 +122,7 @@ with st.sidebar:
 - [Performance](#performance)
   - [Delta](#perf-diff)
   - [CPU Usage](#cpu-chart)
+  - [FPS](#fps-chart)
   - [Details](#perf-details)
 - [Machine Info](#环境信息)
 """, unsafe_allow_html=True)
@@ -190,8 +194,8 @@ fig_rd.add_trace(
         y=baseline_data[selected_metric],
         mode="lines+markers",
         name="Baseline",
-        marker=dict(size=10),
-        line=dict(width=2, shape="spline", smoothing=1.3),
+        marker=dict(size=10, color="#636efa"),
+        line=dict(width=2, shape="spline", smoothing=1.3, color="#636efa"),
     )
 )
 fig_rd.add_trace(
@@ -200,8 +204,8 @@ fig_rd.add_trace(
         y=test_data[selected_metric],
         mode="lines+markers",
         name="Test",
-        marker=dict(size=10),
-        line=dict(width=2, shape="spline", smoothing=1.3),
+        marker=dict(size=10, color="#f0553b"),
+        line=dict(width=2, shape="spline", smoothing=1.3, color="#f0553b"),
     )
 )
 fig_rd.update_layout(
@@ -255,6 +259,7 @@ if not merged.empty:
 
     # 格式化精度
     format_dict = {
+        "Point": "{:.2f}",
         "Bitrate Δ%": "{:.2f}",
         "PSNR Δ": "{:.4f}",
         "SSIM Δ": "{:.4f}",
@@ -278,6 +283,7 @@ st.subheader("Details", anchor="details")
 with st.expander("查看详细Metrics数据", expanded=False):
     # 格式化精度
     details_format = {
+        "Point": "{:.2f}",
         "Bitrate_kbps": "{:.2f}",
         "PSNR": "{:.4f}",
         "SSIM": "{:.4f}",
@@ -326,7 +332,7 @@ if bd_list:
 
     # BD-Rate 柱状图（拆分为独立子标题）
     def _create_bd_bar_chart(df, col, title):
-        colors = ["green" if v < 0 else "red" if v > 0 else "gray" for v in df[col].fillna(0)]
+        colors = ["#00cc96" if v < 0 else "#ef553b" if v > 0 else "gray" for v in df[col].fillna(0)]
         fig = go.Figure()
         fig.add_trace(
             go.Bar(
@@ -398,7 +404,7 @@ if bd_list:
 
     # BD-Metrics 柱状图（拆分为独立子标题）
     def _create_bd_metrics_bar_chart(df, col, title):
-        colors = ["green" if v > 0 else "red" if v < 0 else "gray" for v in df[col].fillna(0)]
+        colors = ["#00cc96" if v > 0 else "#ef553b" if v < 0 else "gray" for v in df[col].fillna(0)]
         fig = go.Figure()
         fig.add_trace(
             go.Bar(
@@ -510,12 +516,12 @@ if video_point_options:
 
         fig_br = go.Figure()
         if chart_type == "柱状图":
-            fig_br.add_trace(go.Bar(x=base_x, y=base_y, name="Baseline", opacity=0.7))
-            fig_br.add_trace(go.Bar(x=test_x, y=test_y, name="Test", opacity=0.7))
+            fig_br.add_trace(go.Bar(x=base_x, y=base_y, name="Baseline", opacity=0.7, marker_color="#636efa"))
+            fig_br.add_trace(go.Bar(x=test_x, y=test_y, name="Test", opacity=0.7, marker_color="#f0553b"))
             fig_br.update_layout(barmode="group")
         else:
-            fig_br.add_trace(go.Scatter(x=base_x, y=base_y, mode="lines+markers", name="Baseline"))
-            fig_br.add_trace(go.Scatter(x=test_x, y=test_y, mode="lines+markers", name="Test"))
+            fig_br.add_trace(go.Scatter(x=base_x, y=base_y, mode="lines+markers", name="Baseline", line=dict(color="#636efa"), marker=dict(color="#636efa")))
+            fig_br.add_trace(go.Scatter(x=test_x, y=test_y, mode="lines+markers", name="Test", line=dict(color="#f0553b"), marker=dict(color="#f0553b")))
 
         fig_br.update_layout(
             title=f"码率对比 - {selected_video_br} ({selected_point_br})",
@@ -549,7 +555,7 @@ if video_point_options:
         col_m1.metric("Baseline 平均码率", f"{base_avg:.2f} kbps")
         col_m2.metric("Test 平均码率", f"{test_avg:.2f} kbps")
         diff_pct = ((test_avg - base_avg) / base_avg * 100) if base_avg > 0 else 0
-        col_m3.metric("码率差异", f"{diff_pct:+.2f}%")
+        col_m3.metric("码率差异", f"{diff_pct:+.2f}%", delta=f"{diff_pct:+.2f}%", delta_color="inverse")
     else:
         st.warning("未找到对应的码率数据。请确保报告包含帧级码率信息。")
 else:
@@ -623,17 +629,9 @@ if perf_rows:
             else:
                 prev_video = diff_perf_df.at[idx, "Video"]
 
-        def _color_perf_diff(val):
-            if pd.isna(val) or not isinstance(val, (int, float)):
-                return ""
-            if val > 0:
-                return "color: green"
-            elif val < 0:
-                return "color: red"
-            return ""
-
         # 格式化精度：FPS 和 CPU 都保留2位小数
         perf_format_dict = {
+            "Point": "{:.2f}",
             "Baseline FPS": "{:.2f}",
             "Test FPS": "{:.2f}",
             "Δ FPS": "{:.2f}",
@@ -641,8 +639,15 @@ if perf_rows:
             "Test CPU(%)": "{:.2f}",
             "Δ CPU Avg(%)": "{:.2f}",
         }
-        styled_perf = diff_perf_df.style.applymap(_color_perf_diff, subset=["Δ FPS", "Δ CPU Avg(%)"]).format(perf_format_dict, na_rep="-")
-        st.dataframe(styled_perf, use_container_width=True, hide_index=True)
+        styled_perf = diff_perf_df.style.applymap(color_positive_green, subset=["Δ FPS"]).applymap(color_positive_red, subset=["Δ CPU Avg(%)"]).format(perf_format_dict, na_rep="-")
+        st.dataframe(
+            styled_perf,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Video": st.column_config.TextColumn("Video", width="medium"),
+            }
+        )
 
     # 2. CPU折线图
     st.subheader("CPU Usage", anchor="cpu-chart")
@@ -679,15 +684,35 @@ if perf_rows:
             exp_label="Test",
         )
         st.plotly_chart(fig_cpu, use_container_width=True)
+
+        # 显示平均CPU占用率对比
+        base_avg_cpu = sum(base_samples) / len(base_samples) if base_samples else 0
+        test_avg_cpu = sum(test_samples) / len(test_samples) if test_samples else 0
+        cpu_diff_pct = ((test_avg_cpu - base_avg_cpu) / base_avg_cpu * 100) if base_avg_cpu > 0 else 0
+
+        col_cpu1, col_cpu2, col_cpu3 = st.columns(3)
+        col_cpu1.metric("Baseline Average CPU Usage", f"{base_avg_cpu:.2f}%")
+        col_cpu2.metric("Test Average CPU Usage", f"{test_avg_cpu:.2f}%")
+        col_cpu3.metric("CPU Usage 差异", f"{cpu_diff_pct:+.2f}%", delta=f"{cpu_diff_pct:+.2f}%", delta_color="inverse")
     else:
         st.info("该视频/点位没有CPU采样数据。")
 
-    # 3. 详细数据表格（默认折叠）
+    # 3. FPS 对比图
+    st.subheader("FPS", anchor="fps-chart")
+    fig_fps = create_fps_chart(
+        df_perf=df_perf,
+        base_label="Baseline",
+        exp_label="Test",
+    )
+    st.plotly_chart(fig_fps, use_container_width=True)
+
+    # 4. 详细数据表格（默认折叠）
     st.subheader("Details", anchor="perf-details")
     with st.expander("查看详细性能数据", expanded=False):
         df_perf_detail = pd.DataFrame(perf_detail_rows)
         # 格式化精度：FPS 和 CPU 保留2位小数
         perf_detail_format = {
+            "Point": "{:.2f}",
             "FPS": "{:.2f}",
             "CPU Avg(%)": "{:.2f}",
             "CPU Max(%)": "{:.2f}",

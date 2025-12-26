@@ -49,7 +49,8 @@ def _plot_frame_lines(
     yaxis_title: str,
 ) -> None:
     fig = go.Figure()
-    for item in encoded:
+    colors = ["#636efa", "#ef553b"]
+    for idx, item in enumerate(encoded):
         label = item.get("label", "Encoded")
         values = y_series_getter(item)
         avg_val = None
@@ -58,7 +59,8 @@ def _plot_frame_lines(
             if numeric_vals:
                 avg_val = sum(numeric_vals) / len(numeric_vals)
         legend_name = f"{label}: {avg_val:.4f}" if avg_val is not None else label
-        fig.add_trace(go.Scatter(x=list(range(len(values))), y=values, mode="lines", name=legend_name))
+        color = colors[idx % len(colors)]
+        fig.add_trace(go.Scatter(x=list(range(len(values))), y=values, mode="lines", name=legend_name, line=dict(color=color)))
     fig.update_layout(
         title=title,
         xaxis_title="Frame",
@@ -432,7 +434,8 @@ chart_type = st.selectbox("图形类型", ["柱状图", "折线图"], key="br_ch
 bin_seconds = st.slider("聚合间隔 (秒)", min_value=0.1, max_value=5.0, value=1.0, step=0.1, key="br_bin")
 
 fig = go.Figure()
-for item in encoded_items:
+colors = ["#636efa", "#ef553b"]
+for idx, item in enumerate(encoded_items):
     bitrate = item.get("bitrate", {}) or {}
     ts = bitrate.get("frame_timestamps", []) or []
     sizes = bitrate.get("frame_sizes", []) or []
@@ -440,17 +443,18 @@ for item in encoded_items:
     bins: Dict[int, float] = {}
     for t, s in zip(ts, sizes):
         try:
-            idx = int(float(t) / bin_seconds)
+            idx_bin = int(float(t) / bin_seconds)
         except (TypeError, ValueError):
             continue
-        bins[idx] = bins.get(idx, 0.0) + float(s) * 8.0
+        bins[idx_bin] = bins.get(idx_bin, 0.0) + float(s) * 8.0
 
     xs = sorted(bins.keys())
     x_times = [i * bin_seconds for i in xs]
     y_kbps = [(bins[i] / bin_seconds) / 1000.0 for i in xs]
 
+    color = colors[idx % len(colors)]
     if chart_type == "柱状图":
-        fig.add_trace(go.Bar(x=x_times, y=y_kbps, name=item.get("label")))
+        fig.add_trace(go.Bar(x=x_times, y=y_kbps, name=item.get("label"), marker_color=color, opacity=0.7))
     else:
         fig.add_trace(
             go.Scatter(
@@ -458,6 +462,8 @@ for item in encoded_items:
                 y=y_kbps,
                 mode="lines+markers",
                 name=item.get("label"),
+                line=dict(color=color),
+                marker=dict(color=color),
             )
         )
 
