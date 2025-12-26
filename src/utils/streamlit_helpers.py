@@ -60,6 +60,13 @@ def list_jobs(
             "report_path": report_path,
         }
 
+        # 读取报告数据以提取元信息
+        try:
+            report_data = json.loads(report_path.read_text(encoding="utf-8"))
+            item["report_data"] = report_data
+        except Exception:
+            item["report_data"] = {}
+
         if check_status:
             meta_path = job_dir / "metadata.json"
             status_ok = True

@@ -82,7 +82,25 @@ if not job_id:
 
     for item in jobs:
         jid = item["job_id"]
-        st.markdown(f"- [{jid} · bitstream_analysis/report_data.json](?job_id={jid})", unsafe_allow_html=True)
+        report_data = item.get("report_data", {})
+
+        # 格式：源流名字（不带后缀名）-日期-时间-任务id
+        ref = report_data.get("reference", {}) or {}
+        ref_label = ref.get("label", "Unknown")
+
+        # 去掉文件扩展名
+        from pathlib import Path
+        source_name = Path(ref_label).stem
+
+        # 从 mtime 提取日期和时间
+        from datetime import datetime
+        dt = datetime.fromtimestamp(item["mtime"])
+        date_str = dt.strftime("%Y-%m-%d")
+        time_str = dt.strftime("%H:%M:%S")
+
+        display_name = f"{source_name}-{date_str}-{time_str}-{jid}"
+
+        st.markdown(f"- [{display_name}](?job_id={jid})", unsafe_allow_html=True)
     st.stop()
 
 # 保持 session_state，方便从首页跳转

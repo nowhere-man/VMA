@@ -53,8 +53,21 @@ if not job_id:
     st.subheader("全部Metrics对比报告")
     for item in jobs:
         jid = item["job_id"]
+        report_data = item.get("report_data", {})
+
+        # 格式：模板名-报告日期-报告时间-任务id
+        template_name = report_data.get("template_name", "Unknown")
+
+        # 从 mtime 提取日期和时间
+        from datetime import datetime
+        dt = datetime.fromtimestamp(item["mtime"])
+        date_str = dt.strftime("%Y-%m-%d")
+        time_str = dt.strftime("%H:%M:%S")
+
+        display_name = f"{template_name}-{date_str}-{time_str}-{jid}"
+
         st.markdown(
-            f"- [{jid} · metrics_analysis/report_data.json](?template_job_id={jid})",
+            f"- [{display_name}](?template_job_id={jid})",
             unsafe_allow_html=True,
         )
     st.stop()
