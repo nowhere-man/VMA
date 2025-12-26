@@ -70,3 +70,7 @@ dmypy.json
 
 # FastAPI
 .tox/
+
+.claude/
+.codex/
+.gemini/
