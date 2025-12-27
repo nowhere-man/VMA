@@ -570,4 +570,7 @@ class FFmpegService:
 
 
 # 全局单例
-ffmpeg_service = FFmpegService()
+ffmpeg_service = FFmpegService(
+    ffmpeg_path=settings.get_ffmpeg_bin(),
+    ffprobe_path=settings.get_ffprobe_bin(),
+)

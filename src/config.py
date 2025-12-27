@@ -2,6 +2,7 @@
 配置管理模块
 
 从环境变量加载应用配置
+环境变量使用 VMA_ 前缀，例如 VMA_PORT=8080
 """
 from pathlib import Path
 from typing import Optional
@@ -22,21 +23,30 @@ class Settings(BaseSettings):
     templates_root_dir: Path = Path("./templates")
 
     # FFmpeg 配置
+    ffmpeg_path: Optional[str] = None  # FFmpeg 目录路径，如 /usr/local/ffmpeg/bin
     ffmpeg_timeout: int = 600
-    vmaf_model_path: Optional[Path] = Path("/usr/share/model/vmaf_v0.6.1.json")
-
-    # 清理配置
-    retention_days: int = 7
 
     # 日志配置
     log_level: str = "INFO"
-    log_format: str = "json"
 
     model_config = SettingsConfigDict(
+        env_prefix="VMA_",
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    def get_ffmpeg_bin(self) -> str:
+        """获取 ffmpeg 可执行文件路径"""
+        if self.ffmpeg_path:
+            return str(Path(self.ffmpeg_path) / "ffmpeg")
+        return "ffmpeg"
+
+    def get_ffprobe_bin(self) -> str:
+        """获取 ffprobe 可执行文件路径"""
+        if self.ffmpeg_path:
+            return str(Path(self.ffmpeg_path) / "ffprobe")
+        return "ffprobe"
 
 
 # 全局配置实例

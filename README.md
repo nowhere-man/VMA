@@ -32,6 +32,64 @@ uv pip install -r requirements.txt
 ```
 
 Access the web UI at `http://localhost:8080`
+- Reports: `http://localhost:8079`
+- API Docs: `http://localhost:8080/api/docs`
+
+## Docker Deployment
+
+### Build Image
+
+```bash
+# Build and export image
+./docker/build.sh
+
+# This generates vma-latest.tar.gz
+```
+
+### Deploy to Server
+
+```bash
+# Transfer to server
+scp vma-latest.tar.gz user@server:/path/to/
+
+# On server: use deploy script
+./docker/deploy.sh vma-latest.tar.gz
+
+# Or manually:
+docker load < vma-latest.tar.gz
+mkdir -p /data/vma/jobs /data/vma/templates
+docker run -d \
+  --name vma \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -p 8079:8079 \
+  -v /data/vma/jobs:/data/jobs \
+  -v /data/vma/templates:/data/templates \
+  vma:latest
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VMA_JOBS_ROOT_DIR` | /data/jobs | Job data directory |
+| `VMA_TEMPLATES_ROOT_DIR` | /data/templates | Templates directory |
+| `VMA_FFMPEG_PATH` | (empty) | Custom FFmpeg bin directory |
+| `VMA_FFMPEG_TIMEOUT` | 600 | FFmpeg command timeout (seconds) |
+| `VMA_LOG_LEVEL` | ERROR | Log level (DEBUG/INFO/WARNING/ERROR) |
+
+### Container Management
+
+```bash
+# View logs
+docker logs -f vma
+
+# Restart
+docker restart vma
+
+# Stop and remove
+docker rm -f vma
+```
 
 ## Project Structure
 
@@ -43,6 +101,7 @@ VMR/
 │   ├── pages/        # Streamlit report pages
 │   ├── templates/    # Jinja2 HTML templates
 │   └── utils/        # Utility modules
+├── docker/           # Docker build files
 ├── jobs/             # Job output directory
 └── run.sh            # Startup script
 ```

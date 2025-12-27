@@ -19,12 +19,15 @@ fi
 
 mkdir -p jobs
 
-testort PYTHONPATH=.
+export PYTHONPATH=.
 
+# Start Streamlit in background (internal port, not exposed)
 .venv/bin/streamlit run src/Homepage.py \
     --server.port 8079 \
-    --server.address 0.0.0.0 \
+    --server.address 127.0.0.1 \
     --server.headless true \
+    --server.enableCORS false \
+    --server.enableXsrfProtection false \
     --browser.gatherUsageStats false \
     > /dev/null 2>&1 &
 
@@ -41,7 +44,9 @@ trap cleanup EXIT
 trap 'exit 0' SIGINT SIGTERM
 
 echo "Starting server..."
-echo "   Web UI: http://localhost:8080"
+echo "   Web UI:  http://localhost:8080"
+echo "   Reports: http://localhost:8079"
+echo "   API:     http://localhost:8080/api/docs"
 echo ""
 .venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
 
