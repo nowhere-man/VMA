@@ -25,14 +25,16 @@ from src.utils.streamlit_helpers import (
     get_query_param,
     load_json_report,
     parse_rate_point as _parse_point,
-    create_cpu_chart,
-    create_fps_chart,
     color_positive_green,
     color_positive_red,
     format_env_info,
     render_overall_section,
     render_delta_bar_chart_by_point,
     render_delta_table_expander,
+)
+from src.utils.streamlit_metrics_components import (
+    inject_smooth_scroll_css,
+    render_performance_section,
 )
 
 
@@ -174,7 +176,7 @@ with st.sidebar:
             "  - [BD SSIM](#bd-ssim)",
             "  - [BD VMAF](#bd-vmaf)",
             "  - [BD VMAF-NEG](#bd-vmaf-neg)",
-        ]
+    ]
     contents += [
         "- [Bitrates](#码率分析)",
         "- [Performance](#performance)",
@@ -186,14 +188,7 @@ with st.sidebar:
     ]
     st.markdown("\n".join(contents), unsafe_allow_html=True)
 
-# 平滑滚动 CSS
-st.markdown("""
-<style>
-html {
-    scroll-behavior: smooth;
-}
-</style>
-""", unsafe_allow_html=True)
+inject_smooth_scroll_css()
 
 # ========== Information ==========
 st.header("Information", anchor="information")
@@ -744,144 +739,29 @@ for entry in entries:
 
 if perf_rows:
     df_perf = pd.DataFrame(perf_rows)
-
-    # 1. 汇总Diff表格
-    st.subheader("Delta", anchor="perf-diff")
-    anchor_perf = df_perf[df_perf["Side"] == "Anchor"]
-    test_perf = df_perf[df_perf["Side"] == "Test"]
-    merged_perf = anchor_perf.merge(
-        test_perf,
-        on=["Video", "Point"],
-        suffixes=("_anchor", "_test"),
-    )
-    if not merged_perf.empty:
-        merged_perf["Δ FPS"] = merged_perf["FPS_test"] - merged_perf["FPS_anchor"]
-        merged_perf["Δ CPU Avg(%)"] = merged_perf["CPU Avg(%)_test"] - merged_perf["CPU Avg(%)_anchor"]
-
-        diff_perf_df = merged_perf[
-            ["Video", "Point", "FPS_anchor", "FPS_test", "Δ FPS", "CPU Avg(%)_anchor", "CPU Avg(%)_test", "Δ CPU Avg(%)"]
-        ].rename(columns={
-            "FPS_anchor": "Anchor FPS",
-            "FPS_test": "Test FPS",
-            "CPU Avg(%)_anchor": "Anchor CPU(%)",
-            "CPU Avg(%)_test": "Test CPU(%)",
-        }).sort_values(by=["Video", "Point"]).reset_index(drop=True)
-
-        # 合并同一视频的名称
-        prev_video = None
-        for idx in diff_perf_df.index:
-            if diff_perf_df.at[idx, "Video"] == prev_video:
-                diff_perf_df.at[idx, "Video"] = ""
-            else:
-                prev_video = diff_perf_df.at[idx, "Video"]
-
-        # 格式化精度：FPS 和 CPU 都保留2位小数
-        perf_format_dict = {
-            "Point": "{:.2f}",
-            "Anchor FPS": "{:.2f}",
-            "Test FPS": "{:.2f}",
-            "Δ FPS": "{:.2f}",
-            "Anchor CPU(%)": "{:.2f}",
-            "Test CPU(%)": "{:.2f}",
-            "Δ CPU Avg(%)": "{:.2f}",
-        }
-        styled_perf = diff_perf_df.style.applymap(color_positive_green, subset=["Δ FPS"]).applymap(color_positive_red, subset=["Δ CPU Avg(%)"]).format(perf_format_dict, na_rep="-")
-        perf_metric_config = {
-            "Δ FPS": {"fmt": "{:+.2f}", "pos": "#00cc96", "neg": "#ef553b"},
-            "Δ CPU Avg(%)": {"fmt": "{:+.2f}%", "pos": "#ef553b", "neg": "#00cc96"},
-        }
-        render_delta_bar_chart_by_point(
-            merged_perf,
-            point_col="Point",
-            metric_options=["Δ FPS", "Δ CPU Avg(%)"],
-            metric_config=perf_metric_config,
-            point_select_label="选择码率点位",
-            metric_select_label="选择指标",
-            point_select_key="perf_delta_point",
-            metric_select_key="perf_delta_metric",
-        )
-
-        render_delta_table_expander(
-            "查看详细Delta数据",
-            styled_perf,
-            column_config={
-                "Video": st.column_config.TextColumn("Video", width="medium"),
-            },
-        )
-
-    # 2. CPU折线图
-    st.subheader("CPU Usage", anchor="cpu-chart")
-
-    # 选择视频和点位
-    video_list_perf = df_perf["Video"].unique().tolist()
-    col_sel_perf1, col_sel_perf2 = st.columns(2)
-    with col_sel_perf1:
-        selected_video_perf = st.selectbox("选择视频", video_list_perf, key="perf_video")
-    with col_sel_perf2:
-        point_list_perf = df_perf[df_perf["Video"] == selected_video_perf]["Point"].unique().tolist()
-        selected_point_perf = st.selectbox("选择码率点位", point_list_perf, key="perf_point")
-
-    # 聚合间隔选择
-    agg_interval = st.slider("聚合间隔 (ms)", min_value=100, max_value=1000, value=100, step=100, key="cpu_agg")
-
-    # 获取对应的CPU采样数据
-    anchor_samples = []
-    test_samples = []
-    for _, row in df_perf.iterrows():
-        if row["Video"] == selected_video_perf and row["Point"] == selected_point_perf:
-            if row["Side"] == "Anchor":
-                anchor_samples = row.get("cpu_samples", []) or []
-            else:
-                test_samples = row.get("cpu_samples", []) or []
-
-    if anchor_samples or test_samples:
-        fig_cpu = create_cpu_chart(
-            anchor_samples=anchor_samples,
-            test_samples=test_samples,
-            agg_interval=agg_interval,
-            title=f"CPU占用率 - {selected_video_perf} ({selected_point_perf})",
-            anchor_label="Anchor",
-            test_label="Test",
-        )
-        st.plotly_chart(fig_cpu, use_container_width=True)
-
-        # 显示平均CPU占用率对比
-        anchor_avg_cpu = sum(anchor_samples) / len(anchor_samples) if anchor_samples else 0
-        test_avg_cpu = sum(test_samples) / len(test_samples) if test_samples else 0
-        cpu_diff_pct = ((test_avg_cpu - anchor_avg_cpu) / anchor_avg_cpu * 100) if anchor_avg_cpu > 0 else 0
-
-        col_cpu1, col_cpu2, col_cpu3 = st.columns(3)
-        col_cpu1.metric("Anchor Average CPU Usage", f"{anchor_avg_cpu:.2f}%")
-        col_cpu2.metric("Test Average CPU Usage", f"{test_avg_cpu:.2f}%")
-        col_cpu3.metric("CPU Usage 差异", f"{cpu_diff_pct:+.2f}%", delta=f"{cpu_diff_pct:+.2f}%", delta_color="inverse")
-    else:
-        st.info("该视频/点位没有CPU采样数据。")
-
-    # 3. FPS 对比图
-    st.subheader("FPS", anchor="fps-chart")
-    fig_fps = create_fps_chart(
+    perf_detail_df = pd.DataFrame(perf_detail_rows)
+    perf_detail_format = {
+        "Point": "{:.2f}",
+        "FPS": "{:.2f}",
+        "CPU Avg(%)": "{:.2f}",
+        "CPU Max(%)": "{:.2f}",
+        "Total Time(s)": "{:.2f}",
+    }
+    render_performance_section(
         df_perf=df_perf,
         anchor_label="Anchor",
         test_label="Test",
+        detail_df=perf_detail_df,
+        detail_format=perf_detail_format,
+        delta_point_key="perf_delta_point",
+        delta_metric_key="perf_delta_metric",
+        cpu_video_key="perf_video",
+        cpu_point_key="perf_point",
+        cpu_agg_key="cpu_agg",
     )
-    st.plotly_chart(fig_fps, use_container_width=True)
-
-    # 4. 详细数据表格（默认折叠）
-    st.subheader("Details", anchor="perf-details")
-    with st.expander("查看详细性能数据", expanded=False):
-        df_perf_detail = pd.DataFrame(perf_detail_rows)
-        # 格式化精度：FPS 和 CPU 保留2位小数
-        perf_detail_format = {
-            "Point": "{:.2f}",
-            "FPS": "{:.2f}",
-            "CPU Avg(%)": "{:.2f}",
-            "CPU Max(%)": "{:.2f}",
-            "Total Time(s)": "{:.2f}",
-        }
-        styled_perf_detail = df_perf_detail.sort_values(by=["Video", "Point", "Side"]).style.format(perf_detail_format, na_rep="-")
-        st.dataframe(styled_perf_detail, use_container_width=True, hide_index=True)
 else:
     st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
+
 
 # ========== 环境信息 ==========
 st.header("Machine Info", anchor="环境信息")

@@ -18,6 +18,53 @@ async def _wait_for_process(process, timeout: int) -> Tuple[bytes, bytes]:
     return await asyncio.wait_for(process.communicate(), timeout=timeout)
 
 
+async def _run_ffmpeg_command(
+    cmd: List[str],
+    timeout: int,
+    add_command_callback,
+    update_status_callback,
+    command_type: str,
+    source_file: Optional[str],
+    on_success: Callable[[], Any],
+    error_prefix: str,
+) -> Any:
+    """运行 FFmpeg 命令并统一处理状态上报/异常"""
+    cmd_id = None
+    if add_command_callback:
+        cmd_id = add_command_callback(command_type, " ".join(cmd), source_file)
+    if update_status_callback and cmd_id:
+        update_status_callback(cmd_id, "running")
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await _wait_for_process(process, timeout)
+
+        if process.returncode != 0:
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "failed", stderr.decode())
+            raise RuntimeError(f"{error_prefix}: {stderr.decode()}")
+
+        result = on_success()
+        if update_status_callback and cmd_id:
+            update_status_callback(cmd_id, "completed")
+        return result
+
+    except asyncio.TimeoutError:
+        process.kill()
+        if update_status_callback and cmd_id:
+            update_status_callback(cmd_id, "failed", f"{error_prefix} timed out")
+        raise RuntimeError(f"{error_prefix} timed out")
+    except Exception as e:
+        if update_status_callback and cmd_id:
+            update_status_callback(cmd_id, "failed", str(e))
+        raise RuntimeError(f"{error_prefix}: {str(e)}")
+
+
 async def _run_metric_cmd(
     cmd: List[str],
     metric_name: str,
@@ -44,40 +91,16 @@ async def _run_metric_cmd(
     Returns:
         解析后的指标结果
     """
-    cmd_id = None
-    if add_command_callback:
-        cmd_id = add_command_callback(command_type, " ".join(cmd), source_file)
-    if update_status_callback and cmd_id:
-        update_status_callback(cmd_id, "running")
-
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        stdout, stderr = await _wait_for_process(process, settings.ffmpeg_timeout)
-
-        if process.returncode != 0:
-            if update_status_callback and cmd_id:
-                update_status_callback(cmd_id, "failed", stderr.decode())
-            raise RuntimeError(f"{metric_name} calculation failed: {stderr.decode()}")
-
-        result = parse_func(output_path)
-        if update_status_callback and cmd_id:
-            update_status_callback(cmd_id, "completed")
-        return result
-
-    except asyncio.TimeoutError:
-        process.kill()
-        if update_status_callback and cmd_id:
-            update_status_callback(cmd_id, "failed", f"{metric_name} calculation timed out")
-        raise RuntimeError(f"{metric_name} calculation timed out")
-    except Exception as e:
-        if update_status_callback and cmd_id:
-            update_status_callback(cmd_id, "failed", str(e))
-        raise RuntimeError(f"Failed to calculate {metric_name}: {str(e)}")
+    return await _run_ffmpeg_command(
+        cmd=cmd,
+        timeout=settings.ffmpeg_timeout,
+        add_command_callback=add_command_callback,
+        update_status_callback=update_status_callback,
+        command_type=command_type,
+        source_file=source_file,
+        on_success=lambda: parse_func(output_path),
+        error_prefix=f"{metric_name} calculation failed",
+    )
 
 
 class FFmpegService:
@@ -535,38 +558,16 @@ class FFmpegService:
             str(output_path),
         ]
 
-        cmd_id = None
-        if add_command_callback:
-            cmd_id = add_command_callback(command_type, " ".join(cmd), source_file or str(input_path))
-        if update_status_callback and cmd_id:
-            update_status_callback(cmd_id, "running")
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await _wait_for_process(process, settings.ffmpeg_timeout)
-
-            if process.returncode != 0:
-                if update_status_callback and cmd_id:
-                    update_status_callback(cmd_id, "failed", stderr.decode())
-                raise RuntimeError(f"Encoding failed: {stderr.decode()}")
-
-            if update_status_callback and cmd_id:
-                update_status_callback(cmd_id, "completed")
-
-        except asyncio.TimeoutError:
-            process.kill()
-            if update_status_callback and cmd_id:
-                update_status_callback(cmd_id, "failed", "Encoding timed out")
-            raise RuntimeError("Encoding timed out")
-        except Exception as e:
-            if update_status_callback and cmd_id:
-                update_status_callback(cmd_id, "failed", str(e))
-            raise RuntimeError(f"Failed to encode video: {str(e)}")
+        await _run_ffmpeg_command(
+            cmd=cmd,
+            timeout=settings.ffmpeg_timeout,
+            add_command_callback=add_command_callback,
+            update_status_callback=update_status_callback,
+            command_type=command_type,
+            source_file=source_file or str(input_path),
+            on_success=lambda: None,
+            error_prefix="Encoding failed",
+        )
 
 
 # 全局单例
