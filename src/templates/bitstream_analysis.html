@@ -40,6 +40,7 @@
                             将文件拖拽到此处上传
                         </div>
                         <div id="refFileName" class="text-xs text-gray-600"></div>
+                        <p class="text-xs text-gray-500 mt-1">YUV文件名格式：name_WxH_FPS.yuv，系统会自动解析。</p>
                     </div>
                 </div>
 
@@ -63,34 +64,9 @@
                             将文件拖拽到此处上传
                         </div>
                         <div id="encFileName" class="text-xs text-gray-600"></div>
+                        <p class="text-xs text-gray-500 mt-1">支持容器、h264/h265 裸流，或符合 name_WxH_FPS.yuv 命名的 YUV 文件，YUV 会自动解析分辨率/帧率。</p>
                     </div>
                 </div>
-            </div>
-
-            <!-- Rawvideo params (Ref 为 yuv 时显示) -->
-            <div id="rawParams" class="border-t border-gray-200 pt-6 hidden">
-                <h2 class="text-sm font-semibold text-gray-900">参考视频为 YUV 时必填</h2>
-                <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Width</label>
-                        <input name="width" type="number" min="1"
-                               placeholder="例如 1920"
-                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Height</label>
-                        <input name="height" type="number" min="1"
-                               placeholder="例如 1080"
-                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">FPS</label>
-                        <input name="fps" type="number" min="0.1" step="0.001"
-                               placeholder="例如 30"
-                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                </div>
-                <p class="mt-2 text-xs text-gray-500">默认像素格式为 yuv420p。</p>
             </div>
 
             <div class="flex items-center justify-between">
@@ -118,7 +94,6 @@ const refInput = document.getElementById('refInput');
 const encDrop = document.getElementById('encDrop');
 const encInput = document.getElementById('encInput');
 const refPath = document.getElementById('refPath');
-const rawParams = document.getElementById('rawParams');
 const refFileName = document.getElementById('refFileName');
 const encFileName = document.getElementById('encFileName');
 
@@ -221,33 +196,8 @@ function bindDropZone(dropEl, inputEl, multiple = false, onFilesChanged = () => 
   dropEl.addEventListener('click', () => inputEl.click());
 }
 
-bindDropZone(refDrop, refInput, false, () => {
-  setFileNames(refInput, refFileName);
-  updateRawParamsVisibility();
-});
+bindDropZone(refDrop, refInput, false, () => setFileNames(refInput, refFileName));
 bindDropZone(encDrop, encInput, true, () => setFileNames(encInput, encFileName));
-
-function isYuvFile(name = '') {
-  return name.trim().toLowerCase().endsWith('.yuv');
-}
-
-function updateRawParamsVisibility() {
-  const fromPath = refPath.value;
-  const fromFile = refInput.files && refInput.files[0] ? refInput.files[0].name : '';
-  const needYuv = isYuvFile(fromPath) || isYuvFile(fromFile);
-  rawParams.classList.toggle('hidden', !needYuv);
-}
-
-refPath.addEventListener('input', updateRawParamsVisibility);
-refInput.addEventListener('change', updateRawParamsVisibility);
-
-encInput.addEventListener('change', () => {
-  const bad = Array.from(encInput.files || []).some(f => isYuvFile(f.name));
-  if (bad) {
-    encInput.value = '';
-    alert('Encoded 不接受 .yuv，请选择容器或 h264/h265 裸流');
-  }
-});
 
 function setFileNames(el, target) {
   const names = Array.from(el.files || []).map(f => f.name);

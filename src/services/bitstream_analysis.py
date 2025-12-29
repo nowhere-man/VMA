@@ -19,6 +19,7 @@ from src.config import settings
 from src.models import Job
 from src.services.ffmpeg import ffmpeg_service
 from src.utils.metrics import parse_psnr_log, parse_ssim_log, parse_vmaf_log
+from src.utils.encoding import parse_yuv_name
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +122,12 @@ async def build_bitstream_report(
     ref_tmp_created = False
     if _is_yuv(reference_path):
         if raw_width is None or raw_height is None or raw_fps is None:
-            raise ValueError("参考视频为 .yuv，必须提供 width/height/fps")
-        ref_width, ref_height, ref_fps = raw_width, raw_height, float(raw_fps)
+            try:
+                ref_width, ref_height, ref_fps = parse_yuv_name(reference_path)
+            except ValueError as exc:
+                raise ValueError("参考视频为 .yuv，文件名需包含 _WxH_FPS，例如 video_1920x1080_30.yuv") from exc
+        else:
+            ref_width, ref_height, ref_fps = raw_width, raw_height, float(raw_fps)
         ref_yuv = reference_path
     else:
         ref_fmt = await _infer_input_format(reference_path)
@@ -184,9 +189,15 @@ async def build_bitstream_report(
         enc_fps: Optional[float] = None
 
         if enc_is_yuv:
-            if raw_width is None or raw_height is None or raw_fps is None:
-                raise ValueError("检测到 .yuv Encoded，必须提供 width/height/fps")
-            enc_width, enc_height, enc_fps = raw_width, raw_height, float(raw_fps)
+            if raw_width is not None and raw_height is not None and raw_fps is not None:
+                enc_width, enc_height, enc_fps = raw_width, raw_height, float(raw_fps)
+            else:
+                try:
+                    enc_width, enc_height, enc_fps = parse_yuv_name(enc_input)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"检测到 .yuv，文件名需包含 _WxH_FPS，例如 video_1920x1080_30.yuv: {enc_input.name}"
+                    ) from exc
         else:
             enc_fmt = await _infer_input_format(enc_input)
             info = await ffmpeg_service.get_video_info(enc_input, input_format=enc_fmt)

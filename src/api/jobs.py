@@ -14,6 +14,7 @@ from src.models import JobMetadata, JobMode, JobStatus
 from src.schemas import CreateJobResponse, ErrorResponse, JobDetailResponse, JobListItem
 from src.services import job_storage
 from src.utils import extract_video_info, save_uploaded_file
+from src.utils.encoding import parse_yuv_name
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -235,9 +236,6 @@ async def create_bitstream_job(
     encoded_paths: Optional[str] = Form(None),
     reference_file: Optional[UploadFile] = File(None),
     encoded_files: Optional[List[UploadFile]] = File(None),
-    width: Optional[int] = Form(None),
-    height: Optional[int] = Form(None),
-    fps: Optional[float] = Form(None),
 ) -> CreateJobResponse:
     """
     创建码流分析任务，支持两种方式提供输入：
@@ -264,24 +262,30 @@ async def create_bitstream_job(
     def _is_yuv(name: str) -> bool:
         return Path(name).suffix.lower() == ".yuv"
 
-    has_yuv = False
+    # 如果存在 yuv，直接从文件名解析分辨率和帧率（格式: name_WxH_FPS.yuv）
+    def _parse_yuv_or_400(path: Path) -> tuple[int, int, float]:
+        try:
+            return parse_yuv_name(path)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"YUV 文件名需符合 name_WxH_FPS.yuv，解析失败: {path.name}",
+            ) from exc
+
+    ref_yuv_dims: Optional[tuple[int, int, float]] = None
     if reference_file and reference_file.filename and _is_yuv(reference_file.filename):
-        has_yuv = True
+        ref_yuv_dims = _parse_yuv_or_400(Path(reference_file.filename))
     if ref_path and _is_yuv(ref_path.name):
-        has_yuv = True
+        ref_yuv_dims = _parse_yuv_or_400(ref_path)
+
+    # 提前校验编码视频中的 yuv 文件名
     if encoded_files:
         for f in encoded_files:
             if f.filename and _is_yuv(f.filename):
-                has_yuv = True
-                break
-    if not has_yuv:
-        for p in enc_path_list:
-            if _is_yuv(p.name):
-                has_yuv = True
-                break
-
-    if has_yuv and (width is None or height is None or fps is None):
-        raise HTTPException(status_code=400, detail="检测到 .yuv 输入，必须填写 width/height/fps")
+                _parse_yuv_or_400(Path(f.filename))
+    for p in enc_path_list:
+        if _is_yuv(p.name):
+            _parse_yuv_or_400(p)
 
     async def _read_upload(upload: Optional[UploadFile]) -> Optional[tuple[str, bytes]]:
         """只接受有文件名且非空内容的上传，返回 (filename, content)。"""
@@ -314,9 +318,9 @@ async def create_bitstream_job(
         mode=JobMode.BITSTREAM_ANALYSIS,
         status=JobStatus.PENDING,
         template_name="码流分析",
-        rawvideo_width=width,
-        rawvideo_height=height,
-        rawvideo_fps=fps,
+        rawvideo_width=ref_yuv_dims[0] if ref_yuv_dims else None,
+        rawvideo_height=ref_yuv_dims[1] if ref_yuv_dims else None,
+        rawvideo_fps=ref_yuv_dims[2] if ref_yuv_dims else None,
     )
     job = job_storage.create_job(metadata)
 
