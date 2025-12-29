@@ -33,18 +33,19 @@ router = APIRouter(prefix="/api/metrics-analysis", tags=["metrics-analysis"])
 )
 async def create_metrics_template(request: CreateMetricsTemplateRequest) -> dict:
     template_id = template_storage.generate_template_id()
-    cfg = TemplateSideConfig(**request.config.model_dump())
-    metadata = EncodingTemplateMetadata(
-        template_id=template_id,
-        name=request.name,
-        description=request.description,
-        template_type=TemplateType.METRICS_ANALYSIS,
-        anchor=cfg,
-        test=None,
-    )
     try:
+        cfg = TemplateSideConfig(**request.config.model_dump())
+        metadata = EncodingTemplateMetadata(
+            template_id=template_id,
+            name=request.name,
+            description=request.description,
+            template_type=TemplateType.METRICS_ANALYSIS,
+            anchor=cfg,
+            test=None,
+        )
         template_storage.create_template(metadata)
-    except ValueError as e:
+    except Exception as e:
+        # 直接返回校验错误，避免 500
         raise HTTPException(status_code=400, detail=str(e))
     return {"template_id": template_id, "status": "created"}
 
@@ -97,7 +98,10 @@ async def update_metrics_template(template_id: str, request: UpdateMetricsTempla
     if request.description is not None:
         template.metadata.description = request.description
     if request.config is not None:
-        template.metadata.anchor = TemplateSideConfig(**request.config.model_dump())
+        try:
+            template.metadata.anchor = TemplateSideConfig(**request.config.model_dump())
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     template_storage.update_template(template)
 

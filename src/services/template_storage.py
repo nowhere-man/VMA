@@ -1,7 +1,7 @@
 """
-转码模板存储服务
+模板存储服务
 
-负责转码模板元数据的持久化和检索（使用文件系统 + JSON）
+负责模板元数据的持久化和检索（使用文件系统 + JSON）
 """
 import json
 from datetime import datetime

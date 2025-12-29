@@ -47,24 +47,22 @@ async def create_template(request: CreateTemplateRequest) -> CreateTemplateRespo
     # 生成模板 ID
     template_id = template_storage.generate_template_id()
 
-    # 显式转换为 TemplateSideConfig，避免 Pydantic 类型不匹配
-    anchor_cfg = TemplateSideConfig(**request.anchor.model_dump())
-    test_cfg = TemplateSideConfig(**request.test.model_dump())
-
-    # 创建模板元数据
-    metadata = EncodingTemplateMetadata(
-        template_id=template_id,
-        name=request.name,
-        description=request.description,
-        anchor=anchor_cfg,
-        test=test_cfg,
-    )
-    metadata.anchor_fingerprint = _fingerprint(metadata.anchor)
-
-    # 创建模板
     try:
+        anchor_cfg = TemplateSideConfig(**request.anchor.model_dump())
+        test_cfg = TemplateSideConfig(**request.test.model_dump())
+
+        # 创建模板元数据
+        metadata = EncodingTemplateMetadata(
+            template_id=template_id,
+            name=request.name,
+            description=request.description,
+            anchor=anchor_cfg,
+            test=test_cfg,
+        )
+        metadata.anchor_fingerprint = _fingerprint(metadata.anchor)
+
         template = template_storage.create_template(metadata)
-    except ValueError as e:
+    except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return CreateTemplateResponse(
@@ -149,10 +147,16 @@ async def update_template(
     if request.description is not None:
         template.metadata.description = request.description
     if request.anchor is not None:
-        template.metadata.anchor = TemplateSideConfig(**request.anchor.model_dump())
+        try:
+            template.metadata.anchor = TemplateSideConfig(**request.anchor.model_dump())
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
         anchor_changed = True
     if request.test is not None:
-        template.metadata.test = TemplateSideConfig(**request.test.model_dump())
+        try:
+            template.metadata.test = TemplateSideConfig(**request.test.model_dump())
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     if anchor_changed:
         template.metadata.anchor_computed = False

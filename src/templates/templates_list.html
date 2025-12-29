@@ -40,7 +40,7 @@ async function loadTemplates() {
   document.getElementById('templatesGrid').classList.add('hidden');
   try {
     const [compRes, metricsRes] = await Promise.all([
-      fetch('/api/templates'),
+      fetch('/api/templates?template_type=metrics_comparison'),
       fetch('/api/metrics-analysis/templates')
     ]);
     if (!compRes.ok) throw new Error('加载对比模板失败');

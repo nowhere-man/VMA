@@ -6,7 +6,7 @@
 <div class="max-w-5xl mx-auto space-y-6">
   <div class="bg-white rounded-lg shadow-sm p-6">
     <h1 class="text-2xl font-bold text-gray-900">{{ '编辑模板' if template_id else '创建模板' }}</h1>
-    <p class="mt-1 text-sm text-gray-600">配置转码模板（对比或 Metrics 分析）。</p>
+    <p class="mt-1 text-sm text-gray-600">配置Metrics分析或对比模板。</p>
   </div>
 
 <form id="templateForm" class="bg-white rounded-lg shadow-sm p-6 space-y-6">
@@ -192,6 +192,19 @@ const testSection = $('test_section');
 const anchorTitle = $('anchor_title');
 const commonSourceSection = $('common_source_section');
 const anchorSourceSection = $('anchor_source_section');
+const commonSourceInput = $('common_source_dir');
+const anchorSourceInput = $('anchor_source_dir');
+const testBitstreamInput = $('test_bitstream_dir');
+const anchorBitstreamInput = $('anchor_bitstream_dir');
+
+function toggleRequired(el, required) {
+  if (!el) return;
+  if (required) {
+    el.setAttribute('required', 'required');
+  } else {
+    el.removeAttribute('required');
+  }
+}
 
 function toggleBlocks() {
   anchorEncode.classList.toggle('hidden', anchorSkip.checked);
@@ -207,11 +220,19 @@ function applyTypeUI(type) {
     anchorTitle.textContent = '编码配置';
     commonSourceSection.classList.add('hidden');
     anchorSourceSection.classList.remove('hidden');
+    toggleRequired(commonSourceInput, false);
+    toggleRequired(testBitstreamInput, false);
+    toggleRequired(anchorSourceInput, true);
+    toggleRequired(anchorBitstreamInput, true);
   } else {
     testSection.classList.remove('hidden');
     anchorTitle.textContent = 'Anchor 对照组';
     commonSourceSection.classList.remove('hidden');
     anchorSourceSection.classList.add('hidden');
+    toggleRequired(commonSourceInput, true);
+    toggleRequired(testBitstreamInput, true);
+    toggleRequired(anchorSourceInput, false);
+    toggleRequired(anchorBitstreamInput, true);
   }
 }
 templateTypeSelect.addEventListener('change', () => applyTypeUI(templateTypeSelect.value));

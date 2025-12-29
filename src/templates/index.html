@@ -82,9 +82,9 @@
   <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
     <div class="flex items-start justify-between">
       <div>
-        <h2 class="text-xl font-semibold text-gray-900">选择转码模板</h2>
+        <h2 class="text-xl font-semibold text-gray-900">选择模板</h2>
         <p class="mt-1 text-sm text-gray-500 flex items-center space-x-2">
-          <span>请选择一个模板来开始质量分析</span>
+          <span>请选择一个模板来开始分析</span>
           <span class="text-xs text-gray-500">基于模板自动复用 Anchor</span>
         </p>
       </div>
@@ -108,7 +108,7 @@
       </div>
 
       <div id="templateSelectWrapper" class="space-y-3 hidden">
-        <label for="templateSelect" class="text-sm font-medium text-gray-700">转码模板</label>
+        <label for="templateSelect" class="text-sm font-medium text-gray-700">模板</label>
         <select id="templateSelect" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </select>
         <div id="templateInfo" class="hidden rounded-lg bg-gray-50 p-3 text-sm text-gray-600"></div>
@@ -238,6 +238,13 @@ async function openTemplatePicker(mode) {
     const res = await fetch(mode === 'analyze' ? '/api/metrics-analysis/templates' : '/api/templates?template_type=metrics_comparison');
     if (!res.ok) throw new Error('无法获取模板列表');
     templatesCache = await res.json();
+    // 去重（防止服务端重复返回同一模板）
+    const seen = new Set();
+    templatesCache = templatesCache.filter((tpl) => {
+      if (seen.has(tpl.template_id)) return false;
+      seen.add(tpl.template_id);
+      return true;
+    });
     if (!templatesCache.length) {
       setModalState('empty');
       return;
