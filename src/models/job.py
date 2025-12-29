@@ -1,7 +1,5 @@
 """
-数据模型定义
-
-定义核心数据结构：Job、MetricsResult、JobMetadata
+任务与指标相关的数据模型
 """
 from datetime import datetime
 from enum import Enum
@@ -56,7 +54,6 @@ class CommandLog(BaseModel):
 class MetricsResult(BaseModel):
     """视频质量指标结果"""
 
-    # 总体平均值
     psnr_avg: Optional[float] = Field(None, description="平均 PSNR (dB)")
     psnr_y: Optional[float] = Field(None, description="Y 分量 PSNR (dB)")
     psnr_u: Optional[float] = Field(None, description="U 分量 PSNR (dB)")

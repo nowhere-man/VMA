@@ -11,7 +11,7 @@ from typing import List, Optional
 from nanoid import generate
 
 from src.config import settings
-from src.models_template import EncodingTemplate, EncodingTemplateMetadata, TemplateType
+from src.models.template import EncodingTemplate, EncodingTemplateMetadata, TemplateType
 
 
 class TemplateStorage:

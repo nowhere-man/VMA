@@ -1,14 +1,11 @@
 """
-VMA 报告应用 - Streamlit主界面
-
-质量分析报告可视化应用
+VMA 报告应用 - VMR
 """
 import streamlit as st
 from pathlib import Path
 import sys
 from typing import List, Dict
 
-# 添加项目根目录到Python路径（此文件位于 src/ 下，项目根在其父目录）
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
@@ -18,7 +15,7 @@ from src.utils.streamlit_helpers import list_jobs
 
 # 页面配置
 st.set_page_config(
-    page_title="首页",
+    page_title="VMR 首页",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -158,5 +155,3 @@ else:
             f"- <a href='/Metrics_Comparison?template_job_id={job_id}' target='_blank'>{display_name}</a>",
             unsafe_allow_html=True,
         )
-
-# 侧边栏（不再保留 legacy 报告扫描）

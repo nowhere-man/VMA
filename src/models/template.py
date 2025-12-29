@@ -1,7 +1,5 @@
 """
 模板数据模型（Anchor / Test）
-
-允许破坏式重构：仅保留当前需求相关的字段。
 """
 from datetime import datetime
 from enum import Enum

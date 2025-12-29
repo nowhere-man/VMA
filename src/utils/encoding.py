@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.models import CommandLog, CommandStatus
-from src.models_template import EncoderType
+from src.models.template import EncoderType
 from src.services.ffmpeg import ffmpeg_service
 
 

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import psutil
 
 from src.models import CommandLog, CommandStatus
-from src.models_template import EncoderType, EncodingTemplate, TemplateSideConfig, TemplateType
+from src.models.template import EncoderType, EncodingTemplate, TemplateSideConfig, TemplateType
 from src.services.storage import job_storage
 from src.services.bitstream_analysis import build_bitstream_report
 from src.services.ffmpeg import ffmpeg_service

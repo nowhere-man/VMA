@@ -1,14 +1,12 @@
 """
-API 请求和响应的 Pydantic schemas
-
-定义 API 端点的输入输出模型
+任务相关 API schemas
 """
 from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from src.models import CommandLog, JobMode, JobStatus, MetricsResult
+from src.models.job import CommandLog, JobMode, JobStatus, MetricsResult
 
 
 class CreateJobResponse(BaseModel):

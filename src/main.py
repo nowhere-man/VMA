@@ -1,7 +1,5 @@
 """
 VMA FastAPI 应用入口点
-
-Web application for video encoding quality analysis using FFmpeg metrics.
 """
 import asyncio
 from contextlib import asynccontextmanager
@@ -67,7 +65,6 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request) -> HTMLResponse:
     """根路径，返回首页"""
-    # 将在后续 US1 任务中获取最近的任务列表
     return templates.TemplateResponse(
         "index.html",
         {

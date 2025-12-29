@@ -240,13 +240,9 @@ async def create_bitstream_job(
     fps: Optional[float] = Form(None),
 ) -> CreateJobResponse:
     """
-    创建码流分析任务（Ref + 多个 Encoded）
-
-    支持两种方式提供输入：
+    创建码流分析任务，支持两种方式提供输入：
     - 服务器端路径（运行 uvicorn 的机器上的路径）
     - 通过浏览器上传文件
-
-    当输入为 .yuv（rawvideo）时，需要提供 width/height/fps（默认 yuv420p）。
     """
     ref_path = Path(reference_path).testanduser() if reference_path else None
     enc_path_list = _parse_paths_field(encoded_paths)

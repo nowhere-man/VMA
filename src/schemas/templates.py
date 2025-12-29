@@ -1,15 +1,15 @@
 """
-Metrics 分析模板 API schemas
+模板 API schemas
 """
 from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from src.models_template import EncoderType, RateControl, TemplateSideConfig
+from src.models.template import EncoderType, RateControl, TemplateSideConfig
 
 
-class MetricsTemplatePayload(BaseModel):
+class TemplateSidePayload(BaseModel):
     skip_encode: bool = Field(default=False, description="跳过转码")
     source_dir: str = Field(..., description="源视频目录")
     encoder_type: Optional[EncoderType] = Field(None, description="编码器类型")
@@ -19,41 +19,53 @@ class MetricsTemplatePayload(BaseModel):
     bitstream_dir: str = Field(..., description="码流目录")
 
 
-class CreateMetricsTemplateRequest(BaseModel):
+class CreateTemplateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    config: MetricsTemplatePayload
+    anchor: TemplateSidePayload
+    test: TemplateSidePayload
 
 
-class UpdateMetricsTemplateRequest(BaseModel):
+class UpdateTemplateRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    config: Optional[MetricsTemplatePayload] = None
+    anchor: Optional[TemplateSidePayload] = None
+    test: Optional[TemplateSidePayload] = None
 
 
-class MetricsTemplateResponse(BaseModel):
+class TemplateResponse(BaseModel):
     template_id: str
     name: str
     description: Optional[str]
-    # 返回 dict，避免前端编辑时路径校验
-    config: dict
+    template_type: str
+    anchor: dict  # 返回原始 dict，避免前端编辑时因路径校验失败
+    test: Optional[dict] = None
+    anchor_computed: bool
+    anchor_fingerprint: Optional[str]
     created_at: datetime
     updated_at: datetime
-    template_type: str = Field(default="metrics_analysis")
 
 
-class MetricsTemplateListItem(BaseModel):
+class CreateTemplateResponse(BaseModel):
     template_id: str
-    name: str
-    description: Optional[str]
-    created_at: datetime
-    source_dir: str
-    bitstream_dir: str
-    template_type: str = Field(default="metrics_analysis")
+    status: str = Field(default="created")
 
 
-class ValidateMetricsTemplateResponse(BaseModel):
+class ValidateTemplateResponse(BaseModel):
     template_id: str
     source_exists: bool
     output_dir_writable: bool
     all_valid: bool
+
+
+class TemplateListItem(BaseModel):
+    template_id: str
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    template_type: str
+    anchor_source_dir: str
+    anchor_bitstream_dir: str
+    test_source_dir: Optional[str] = None
+    test_bitstream_dir: Optional[str] = None
+    anchor_computed: bool = False

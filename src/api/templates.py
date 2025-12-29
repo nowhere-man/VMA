@@ -9,8 +9,8 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
-from src.models_template import EncodingTemplateMetadata, TemplateType
-from src.schemas_template import (
+from src.models.template import EncodingTemplateMetadata, TemplateType
+from src.schemas.templates import (
     CreateTemplateRequest,
     CreateTemplateResponse,
     TemplateListItem,
@@ -22,7 +22,7 @@ from src.models import JobMetadata, JobMode, JobStatus
 from src.services.template_runner import template_runner
 from src.services.storage import job_storage
 from src.services.template_storage import template_storage
-from src.models_template import TemplateSideConfig
+from src.models.template import TemplateSideConfig
 from src.utils.template_helpers import fingerprint as _fingerprint
 from src.utils.path_helpers import dir_exists, dir_writable
 

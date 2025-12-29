@@ -8,8 +8,8 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from src.models import JobMetadata, JobMode, JobStatus
-from src.models_template import EncodingTemplateMetadata, TemplateType
-from src.schemas_metrics_analysis import (
+from src.models.template import EncodingTemplateMetadata, TemplateType
+from src.schemas.metrics_analysis import (
     CreateMetricsTemplateRequest,
     MetricsTemplateListItem,
     MetricsTemplateResponse,
@@ -19,7 +19,7 @@ from src.schemas_metrics_analysis import (
 from src.services.metrics_analysis_runner import metrics_analysis_runner
 from src.services.storage import job_storage
 from src.services.template_storage import template_storage
-from src.models_template import TemplateSideConfig
+from src.models.template import TemplateSideConfig
 from src.utils.path_helpers import dir_exists, dir_writable
 
 router = APIRouter(prefix="/api/metrics-analysis", tags=["metrics-analysis"])
