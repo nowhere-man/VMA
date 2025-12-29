@@ -1,12 +1,12 @@
 [project]
-name = "vmr"
+name = "vma"
 version = "0.1.0"
 description = "Video Metrics Reporter - A video quality and performance analysis tool for PSNR, SSIM, VMAF, BD-Rate, encoding FPS and CPU utilization"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
-    { name = "Jack" }
+    { name = "nowhere-man" }
 ]
 keywords = ["video", "quality", "metrics", "psnr", "ssim", "vmaf", "bd-rate", "encoding", "benchmark", "performance", "fps", "cpu"]
 classifiers = [
@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/liushaojie/VMR"
+Repository = "https://github.com/nowhere-man/VMA"
 
 [build-system]
 requires = ["hatchling"]

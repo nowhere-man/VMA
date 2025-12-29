@@ -3,14 +3,12 @@
 
 set -e
 
-# Switch to project root (script directory)
 cd "$(dirname "$0")"
 
 echo "Starting VMA - Video Metrics Analyzer..."
 echo "================================================"
 echo ""
 
-# Check if virtual environment exists
 if [ ! -d ".venv" ]; then
     echo "Error: Virtual environment not found!"
     echo "Please run: uv venv && uv pip install -r requirements.txt"
@@ -21,7 +19,6 @@ mkdir -p jobs
 
 export PYTHONPATH=.
 
-# Start Streamlit in background (internal port, not exposed)
 .venv/bin/streamlit run src/Homepage.py \
     --server.port 8079 \
     --server.address 127.0.0.1 \

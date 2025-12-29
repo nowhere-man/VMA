@@ -21,7 +21,7 @@ A video quality analysis tool for comparing video encoders using quality metrics
 ```bash
 # Clone the repository
 git clone https://github.com/nowhere-man/VMA.git
-cd VMR
+cd VMA
 
 # Create virtual environment and install dependencies
 uv venv
@@ -94,7 +94,7 @@ docker rm -f vma
 ## Project Structure
 
 ```
-VMR/
+VMA/
 ├── src/
 │   ├── api/          # FastAPI endpoints
 │   ├── services/     # Core business logic
