@@ -1,0 +1,9 @@
+host: 0.0.0.0
+fastapi_port: 8080
+streamlit_port: 8079
+jobs_root_dir: ./data/jobs
+templates_root_dir: ./data/templates
+reports_root_dir: ./data/reports
+ffmpeg_path:
+ffmpeg_timeout: 600
+log_level: error

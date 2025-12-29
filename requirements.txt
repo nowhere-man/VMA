@@ -6,7 +6,7 @@ python-multipart>=0.0.6
 
 # Data Validation
 pydantic>=2.0.0
-pydantic-settings>=2.0.0
+PyYAML>=6.0
 
 # Utilities
 nanoid>=2.0.0

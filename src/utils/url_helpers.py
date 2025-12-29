@@ -14,7 +14,7 @@ def build_reports_base_url(request: Request) -> str:
 
     - 取 Host / X-Forwarded-Host（去掉端口）
     - 取协议 / X-Forwarded-Proto
-    - 使用配置的 reports_port
+    - 使用配置的 streamlit_port
     """
     forwarded_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
     forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
@@ -26,4 +26,4 @@ def build_reports_base_url(request: Request) -> str:
 
     scheme = forwarded_proto or (request.url.scheme or "http")
 
-    return f"{scheme}://{host}:{settings.reports_port}"
+    return f"{scheme}://{host}:{settings.streamlit_port}"

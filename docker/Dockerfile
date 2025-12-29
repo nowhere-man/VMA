@@ -33,6 +33,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY src/ /app/src/
 COPY templates/ /app/templates/
+COPY config.yml /app/config.yml
 
 # 复制启动脚本
 COPY docker/start.sh /app/start.sh
@@ -41,14 +42,8 @@ RUN chmod +x /app/start.sh
 # 创建数据目录
 RUN mkdir -p /data/jobs /data/templates
 
-# 设置默认环境变量
-ENV VMA_HOST=0.0.0.0 \
-    VMA_PORT=8080 \
-    VMA_JOBS_ROOT_DIR=/data/jobs \
-    VMA_TEMPLATES_ROOT_DIR=/data/templates \
-    VMA_FFMPEG_TIMEOUT=600 \
-    VMA_LOG_LEVEL=error \
-    PYTHONPATH=/app
+# 设置默认环境变量（仅用于 Python 路径）
+ENV PYTHONPATH=/app
 
 # 暴露端口
 EXPOSE 8080 8079

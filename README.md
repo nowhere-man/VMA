@@ -49,34 +49,28 @@ Access the web UI at `http://localhost:8080`
 ### Deploy to Server
 
 ```bash
-# Transfer to server
 scp vma-latest.tar.gz user@server:/path/to/
 
-# On server: use deploy script
 ./docker/deploy.sh vma-latest.tar.gz
 
 # Or manually:
 docker load < vma-latest.tar.gz
-mkdir -p /data/vma/jobs /data/vma/templates
+DATA_DIR=$(cd docker && pwd)/data
+mkdir -p "${DATA_DIR}/jobs" "${DATA_DIR}/templates"
 docker run -d \
   --name vma \
   --restart unless-stopped \
   -p 8080:8080 \
   -p 8079:8079 \
-  -v /data/vma/jobs:/data/jobs \
-  -v /data/vma/templates:/data/templates \
+  -v "${DATA_DIR}/jobs:/data/jobs" \
+  -v "${DATA_DIR}/templates:/data/templates" \
   vma:latest
 ```
 
-### Environment Variables
+### Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VMA_JOBS_ROOT_DIR` | /data/jobs | Job data directory |
-| `VMA_TEMPLATES_ROOT_DIR` | /data/templates | Templates directory |
-| `VMA_FFMPEG_PATH` | (empty) | Custom FFmpeg bin directory |
-| `VMA_FFMPEG_TIMEOUT` | 600 | FFmpeg command timeout (seconds) |
-| `VMA_LOG_LEVEL` | error | Log level ('critical', 'error', 'warning', 'info', 'debug', 'trace') |
+- 配置文件：`config.yml`
+- 修改端口或路径时直接编辑 `config.yml`
 
 ### Container Management
 

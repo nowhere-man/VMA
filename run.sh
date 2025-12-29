@@ -5,6 +5,42 @@ set -e
 
 cd "$(dirname "$0")"
 
+CONFIG_FILE="${CONFIG_FILE:-config.yml}"
+
+if [ ! -f "${CONFIG_FILE}" ]; then
+    echo "Error: Config file not found: ${CONFIG_FILE}"
+    exit 1
+fi
+
+read_config_vars() {
+python - "$CONFIG_FILE" <<'PY'
+import sys, yaml, shlex
+config_path = sys.argv[1]
+with open(config_path, "r", encoding="utf-8") as f:
+    cfg = yaml.safe_load(f) or {}
+
+required = [
+    "host",
+    "fastapi_port",
+    "streamlit_port",
+    "jobs_root_dir",
+    "templates_root_dir",
+    "reports_root_dir",
+    "log_level",
+]
+missing = [k for k in required if k not in cfg]
+if missing:
+    print(f"Missing config keys in {config_path}: {', '.join(missing)}", file=sys.stderr)
+    sys.exit(1)
+
+for key in required:
+    val = str(cfg[key])
+    print(f"{key.upper()}={shlex.quote(val)}")
+PY
+}
+
+eval "$(read_config_vars)" || exit 1
+
 echo "Starting VMA - Video Metrics Analyzer..."
 echo "================================================"
 echo ""
@@ -15,13 +51,15 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
-mkdir -p jobs
+mkdir -p "${JOBS_ROOT_DIR}"
+mkdir -p "${TEMPLATES_ROOT_DIR}"
+mkdir -p "${REPORTS_ROOT_DIR}"
 
 export PYTHONPATH=.
 
 .venv/bin/streamlit run src/Homepage.py \
-    --server.port 8079 \
-    --server.address 127.0.0.1 \
+    --server.port "${STREAMLIT_PORT}" \
+    --server.address "${HOST}" \
     --server.headless true \
     --server.enableCORS false \
     --server.enableXsrfProtection false \
@@ -41,11 +79,15 @@ trap cleanup EXIT
 trap 'exit 0' SIGINT SIGTERM
 
 echo "Starting server..."
-echo "   Web UI:  http://localhost:8080"
-echo "   Reports: http://localhost:8079"
-echo "   API:     http://localhost:8080/api/docs"
+echo "   Web UI:  http://${HOST}:${FASTAPI_PORT}"
+echo "   Reports: http://${HOST}:${STREAMLIT_PORT}"
+echo "   API:     http://${HOST}:${FASTAPI_PORT}/api/docs"
 echo ""
-.venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8080 --log-level error
+.venv/bin/uvicorn src.main:app \
+  --reload \
+  --host "${HOST}" \
+  --port "${FASTAPI_PORT}" \
+  --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
 
 echo "Press Ctrl+C to stop servers"
 echo ""
