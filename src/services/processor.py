@@ -61,7 +61,7 @@ class TaskProcessor:
         """初始化任务处理器"""
         self.processing = False
         self.current_job: Optional[str] = None
-        self.supported_modes = {JobMode.SINGLE_FILE, JobMode.DUAL_FILE, JobMode.BITSTREAM_ANALYSIS}
+        self.supported_modes = {JobMode.BITSTREAM_ANALYSIS}
 
     async def process_job(self, job_id: str) -> None:
         """
@@ -93,11 +93,7 @@ class TaskProcessor:
             logger.info(f"Processing job {job_id} (mode: {job.metadata.mode})")
 
             # 根据模式处理
-            if job.metadata.mode == JobMode.SINGLE_FILE:
-                await self._process_single_file(job)
-            elif job.metadata.mode == JobMode.DUAL_FILE:
-                await self._process_dual_file(job)
-            elif job.metadata.mode == JobMode.BITSTREAM_ANALYSIS:
+            if job.metadata.mode == JobMode.BITSTREAM_ANALYSIS:
                 await self._process_bitstream_analysis(job)
 
             # 更新状态为已完成
@@ -116,90 +112,6 @@ class TaskProcessor:
             job_storage.update_job(job)
 
             logger.error(f"Job {job_id} failed: {str(e)}")
-
-    async def _process_single_file(self, job: Job) -> None:
-        """
-        处理单文件模式任务
-
-        Args:
-            job: 任务对象
-        """
-        from .ffmpeg import ffmpeg_service
-        from .storage import job_storage
-
-        add_cmd, update_cmd = _make_command_callbacks(job, job_storage)
-
-        # 获取原始视频路径
-        reference_path = job.get_reference_path()
-        if not reference_path or not reference_path.exists():
-            raise FileNotFoundError(f"Reference video not found: {reference_path}")
-
-        # 生成编码后的视频路径
-        distorted_path = job.job_dir / "encoded_output.mp4"
-
-        # 使用预设编码视频
-        preset = job.metadata.preset or "medium"
-        logger.info(f"Encoding video with preset: {preset}")
-
-        await ffmpeg_service.encode_video(
-            input_path=reference_path,
-            output_path=distorted_path,
-            preset=preset,
-            crf=23,
-            add_command_callback=add_cmd,
-            update_status_callback=update_cmd,
-            command_type="encode",
-            source_file=str(reference_path),
-        )
-
-        # 更新待测视频信息
-        video_info = await self._get_video_info(distorted_path)
-        from src.models import VideoInfo
-
-        job.metadata.distorted_video = VideoInfo(
-            filename=distorted_path.name,
-            size_bytes=distorted_path.stat().st_size,
-            **video_info,
-        )
-
-        # 计算质量指标
-        await self._calculate_metrics(job, reference_path, distorted_path, add_cmd, update_cmd)
-
-    async def _process_dual_file(self, job: Job) -> None:
-        """
-        处理双文件模式任务
-
-        Args:
-            job: 任务对象
-        """
-        from .storage import job_storage
-        add_cmd, update_cmd = _make_command_callbacks(job, job_storage)
-        # 获取参考视频和待测视频路径
-        reference_path = job.get_reference_path()
-        distorted_path = job.get_distorted_path()
-
-        if not reference_path or not reference_path.exists():
-            raise FileNotFoundError(f"Reference video not found: {reference_path}")
-
-        if not distorted_path or not distorted_path.exists():
-            raise FileNotFoundError(f"Distorted video not found: {distorted_path}")
-
-        # 验证视频信息
-        ref_info = await self._get_video_info(reference_path)
-        dist_info = await self._get_video_info(distorted_path)
-
-        # 检查分辨率是否匹配
-        if (
-            ref_info["width"] != dist_info["width"]
-            or ref_info["height"] != dist_info["height"]
-        ):
-            logger.warning(
-                f"Resolution mismatch: reference {ref_info['width']}x{ref_info['height']} vs "
-                f"distorted {dist_info['width']}x{dist_info['height']}"
-            )
-
-        # 计算质量指标
-        await self._calculate_metrics(job, reference_path, distorted_path, add_cmd, update_cmd)
 
     async def _process_bitstream_analysis(self, job: Job) -> None:
         """

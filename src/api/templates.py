@@ -250,7 +250,7 @@ async def execute_template(
     job_id = job_storage.generate_job_id()
     metadata = JobMetadata(
         job_id=job_id,
-        mode=JobMode.TEMPLATE,
+        mode=JobMode.BITSTREAM_ANALYSIS,
         status=JobStatus.PENDING,
         template_a_id=template_id,
         template_name=template.metadata.name,

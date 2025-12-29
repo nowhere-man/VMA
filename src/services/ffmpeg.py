@@ -523,53 +523,6 @@ class FFmpegService:
             command_type, source_file or str(distorted_path),
         )
 
-    async def encode_video(
-        self,
-        input_path: Path,
-        output_path: Path,
-        preset: str = "medium",
-        crf: int = 23,
-        add_command_callback=None,
-        update_status_callback=None,
-        command_type: str = "encode",
-        source_file: Optional[str] = None,
-    ) -> None:
-        """
-        使用固定预设编码视频（单文件模式）
-
-        Args:
-            input_path: 输入视频路径
-            output_path: 输出视频路径
-            preset: 编码预设
-            crf: CRF 值
-        """
-        cmd = [
-            self.ffmpeg_path,
-            "-i",
-            str(input_path),
-            "-c:v",
-            "libx264",
-            "-preset",
-            preset,
-            "-crf",
-            str(crf),
-            "-c:a",
-            "copy",
-            str(output_path),
-        ]
-
-        await _run_ffmpeg_command(
-            cmd=cmd,
-            timeout=settings.ffmpeg_timeout,
-            add_command_callback=add_command_callback,
-            update_status_callback=update_status_callback,
-            command_type=command_type,
-            source_file=source_file or str(input_path),
-            on_success=lambda: None,
-            error_prefix="Encoding failed",
-        )
-
-
 # 全局单例
 ffmpeg_service = FFmpegService(
     ffmpeg_path=settings.get_ffmpeg_bin(),

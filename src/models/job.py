@@ -20,12 +20,8 @@ class JobStatus(str, Enum):
 
 class JobMode(str, Enum):
     """任务模式枚举"""
-
-    SINGLE_FILE = "single_file"  # 单文件模式：系统执行预设转码
-    DUAL_FILE = "dual_file"  # 双文件模式：用户提供参考和待测视频
     BITSTREAM_ANALYSIS = "bitstream_analysis"  # 码流分析：参考 + 多个编码文件
     COMPARISON = "comparison"  # 对比模式：对比两个模板的执行结果
-    TEMPLATE = "template"  # 模板模式：使用模板执行转码
     METRICS_ANALYSIS = "metrics_analysis"  # 单侧 Metrics 分析模板
 
 
@@ -105,9 +101,6 @@ class JobMetadata(BaseModel):
     rawvideo_height: Optional[int] = Field(None, description="YUV 高度（仅 rawvideo）")
     rawvideo_fps: Optional[float] = Field(None, description="YUV 帧率（仅 rawvideo）")
     rawvideo_pix_fmt: str = Field(default="yuv420p", description="YUV 像素格式（默认 yuv420p）")
-
-    # 转码参数（单文件模式）
-    preset: Optional[str] = Field(None, description="转码预设")
 
     # 模板信息
     template_id: Optional[str] = Field(None, description="模板 ID")

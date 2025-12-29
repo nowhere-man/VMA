@@ -36,9 +36,6 @@ class JobDetailResponse(BaseModel):
     reference_filename: Optional[str] = Field(None, description="参考视频文件名")
     distorted_filename: Optional[str] = Field(None, description="待测视频文件名")
 
-    # 转码参数（单文件模式）
-    preset: Optional[str] = Field(None, description="转码预设")
-
     # 指标结果
     metrics: Optional[MetricsResult] = Field(None, description="质量指标结果")
 

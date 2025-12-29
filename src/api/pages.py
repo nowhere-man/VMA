@@ -80,7 +80,6 @@ async def job_report_page(request: Request, job_id: str) -> HTMLResponse:
             metadata.distorted_video.filename if metadata.distorted_video else None
         ),
         "encoded_filenames": [v.filename for v in (metadata.encoded_videos or [])],
-        "preset": metadata.preset,
         "metrics": metadata.metrics,
         "error_message": metadata.error_message,
         "template_a_id": metadata.template_a_id,
