@@ -100,7 +100,7 @@ def bd_rate(
         return None
 
     avg_test_diff = (int2 - int1) / (max_int - min_int)
-    return (np.test(avg_test_diff) - 1) * 100
+    return (np.exp(avg_test_diff) - 1) * 100
 
 
 def bd_metrics(

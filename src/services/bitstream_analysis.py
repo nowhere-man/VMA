@@ -319,7 +319,7 @@ async def build_bitstream_report(
             "version=vmaf_v0.6.1\\:name=vmaf|version=vmaf_v0.6.1neg\\:name=vmaf_neg"
         )
         vmaf_filter = (
-            f"libvmaf='model={model_value}':n_threads=8:log_fmt=csv:log_path={vmaf_csv}"
+            f"libvmaf='model={model_value}':n_threads=16:log_fmt=csv:log_path={vmaf_csv}"
         )
         await _run_logged(
             raw_ref_args
