@@ -62,7 +62,7 @@ async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=Non
                     continue
                 raise FileNotFoundError(f"缺少码流: {stem}")
 
-            ext = _output_extension(config.encoder_type, src, is_container=not src.is_yuv and _is_container_file(src.path))
+            ext = _output_extension(config.encoder_type, src, is_container=not src.is_yuv and _is_container_file(src.path), params=config.encoder_params or "")
             output_path = out_dir / f"{stem}{ext}"
             cmd = _build_encode_cmd(
                 enc=config.encoder_type,

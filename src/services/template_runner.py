@@ -367,7 +367,7 @@ async def _encode_side(
                     continue
                 raise FileNotFoundError(f"缺少码流: {stem}")
             stem = _build_output_stem(src.path, side.rate_control.value if side.rate_control else "rc", val)
-            ext = _output_extension(side.encoder_type, src, is_container=not src.is_yuv and _is_container_file(src.path))
+            ext = _output_extension(side.encoder_type, src, is_container=not src.is_yuv and _is_container_file(src.path), params=side.encoder_params or "")
             out_path = side_dir / f"{stem}{ext}"
             if not recompute and out_path.exists():
                 file_outputs.append(out_path)

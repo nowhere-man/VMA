@@ -110,17 +110,21 @@ def build_output_stem(src: Path, rate_control: str, val: float) -> str:
     return f"{src.stem}_{rc}_{val_str}"
 
 
-def output_extension(enc: EncoderType, src: SourceInfo, is_container: bool) -> str:
+def output_extension(enc: EncoderType, src: SourceInfo, is_container: bool, params: str = "") -> str:
     """确定输出文件扩展名"""
     if enc == EncoderType.FFMPEG:
         if is_container:
             return src.path.suffix or ".mp4"
-        suf = src.path.suffix.lower()
-        if suf in {".h265", ".265", ".hevc"}:
+        # 根据编码参数确定输出扩展名
+        params_lower = params.lower()
+        if "libx265" in params_lower or "hevc" in params_lower or "-c:v h265" in params_lower:
             return ".h265"
-        if suf in {".h264", ".264"}:
+        if "libx264" in params_lower or "-c:v h264" in params_lower:
             return ".h264"
-        return encoder_extension(enc)
+        if "libvvenc" in params_lower or "vvc" in params_lower:
+            return ".h266"
+        # 默认返回 .h264
+        return ".h264"
     return encoder_extension(enc)
 
 
