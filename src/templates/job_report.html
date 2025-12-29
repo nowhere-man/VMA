@@ -26,7 +26,7 @@
                 <dt class="text-sm font-medium text-gray-500">模式</dt>
 	                <dd class="mt-1 text-sm text-gray-900">
 	                    {% if job.mode == 'bitstream_analysis' %}码流分析
-	                    {% elif job.mode == 'comparison' %}模板对比模式
+	                    {% elif job.mode == 'metrics_comparison' %}模板对比模式
 	                    {% else %}{{ job.mode }}{% endif %}
 	                </dd>
             </div>
@@ -133,7 +133,7 @@
                 <h2 class="text-lg font-semibold text-gray-900">码流/指标报告</h2>
                 <p class="mt-1 text-sm text-gray-600">报告使用 Streamlit 展示（包含逐帧曲线与码率/帧结构图）。</p>
             </div>
-            {% if job.mode in ['template', 'comparison'] %}
+            {% if job.mode == 'metrics_comparison' %}
             <a href="{{ reports_base_url }}/Metrics_Comparison?template_job_id={{ job.job_id }}" target="_blank"
                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                 打开报告 →
@@ -222,7 +222,7 @@
     {% endif %}
 
     <!-- 模板对比结果 -->
-    {% if job.mode == 'comparison' and job.comparison_result %}
+    {% if job.mode == 'metrics_comparison' and job.comparison_result %}
     <div class="bg-white rounded-lg shadow-sm p-6 space-y-6">
         <h2 class="text-lg font-semibold text-gray-900">模板对比结果</h2>
 

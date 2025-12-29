@@ -1,6 +1,4 @@
 """
-API 端点实现 - 转码模板管理
-
 提供模板创建、查询、更新、删除等 RESTful API
 """
 from typing import List, Optional
@@ -14,7 +12,6 @@ from src.schemas.templates import (
     CreateTemplateRequest,
     CreateTemplateResponse,
     TemplateListItem,
-    TemplateResponse,
     UpdateTemplateRequest,
     ValidateTemplateResponse,
 )
@@ -250,7 +247,7 @@ async def execute_template(
     job_id = job_storage.generate_job_id()
     metadata = JobMetadata(
         job_id=job_id,
-        mode=JobMode.BITSTREAM_ANALYSIS,
+        mode=JobMode.METRICS_COMPARISON,
         status=JobStatus.PENDING,
         template_a_id=template_id,
         template_name=template.metadata.name,

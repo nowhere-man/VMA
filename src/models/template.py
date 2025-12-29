@@ -17,7 +17,7 @@ class EncoderType(str, Enum):
 
 
 class TemplateType(str, Enum):
-    COMPARISON = "comparison"  # Anchor vs Test
+    METRICS_COMPARISON = "metrics_comparison"  # Anchor vs Test
     METRICS_ANALYSIS = "metrics_analysis"  # 单侧 Metrics 分析模板
 
 
@@ -69,7 +69,7 @@ class EncodingTemplateMetadata(BaseModel):
     name: str = Field(..., description="模板名称")
     description: Optional[str] = Field(None, description="模板描述")
 
-    template_type: TemplateType = Field(default=TemplateType.COMPARISON, description="模板类型")
+    template_type: TemplateType = Field(default=TemplateType.METRICS_COMPARISON, description="模板类型")
 
     anchor: TemplateSideConfig
     test: Optional[TemplateSideConfig] = None
@@ -87,7 +87,7 @@ class EncodingTemplateMetadata(BaseModel):
 
     @model_validator(mode="after")
     def validate_by_type(self) -> "EncodingTemplateMetadata":
-        if self.template_type == TemplateType.COMPARISON:
+        if self.template_type == TemplateType.METRICS_COMPARISON:
             if self.test is None:
                 raise ValueError("Comparison 模板需要 Test 配置")
         else:

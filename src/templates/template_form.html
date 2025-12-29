@@ -18,7 +18,7 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">模板类型<span class="text-red-500">*</span></label>
           <select id="template_type" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
             <option value="metrics_analysis">Metrics分析</option>
-            <option value="comparison" selected>Metrics对比</option>
+            <option value="metrics_comparison" selected>Metrics对比</option>
           </select>
         </div>
       </div>
@@ -180,7 +180,7 @@ const form = document.getElementById('templateForm');
 const errBox = document.getElementById('formError');
 const submitBtn = document.getElementById('submitBtn');
 const urlParams = new URLSearchParams(window.location.search);
-const initialType = urlParams.get('type') === 'metrics' ? 'metrics_analysis' : 'comparison';
+const initialType = urlParams.get('type') === 'metrics' ? 'metrics_analysis' : 'metrics_comparison';
 
 function $(id) { return document.getElementById(id); }
 const anchorSkip = $('anchor_skip');
@@ -257,7 +257,7 @@ async function loadTemplate() {
       data.anchor = data.config;
       data.test = null;
     }
-    templateTypeSelect.value = data.template_type || 'comparison';
+    templateTypeSelect.value = data.template_type || 'metrics_comparison';
     applyTypeUI(templateTypeSelect.value);
     $('name').value = data.name || '';
     $('description').value = data.description || '';
@@ -280,7 +280,7 @@ async function loadTemplate() {
     fill('anchor', data.anchor);
     fill('test', data.test);
     // 对比模式下，填充公共源视频目录
-    if (data.template_type === 'comparison' && data.anchor?.source_dir) {
+    if (data.template_type === 'metrics_comparison' && data.anchor?.source_dir) {
       $('common_source_dir').value = data.anchor.source_dir || '';
     }
     toggleBlocks();

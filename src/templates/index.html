@@ -235,7 +235,7 @@ async function openTemplatePicker(mode) {
   toggleTemplateModal(true);
 
   try {
-    const res = await fetch(mode === 'analyze' ? '/api/metrics-analysis/templates' : '/api/templates?template_type=comparison');
+    const res = await fetch(mode === 'analyze' ? '/api/metrics-analysis/templates' : '/api/templates?template_type=metrics_comparison');
     if (!res.ok) throw new Error('无法获取模板列表');
     templatesCache = await res.json();
     if (!templatesCache.length) {

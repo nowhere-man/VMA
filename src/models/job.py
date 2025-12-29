@@ -20,8 +20,9 @@ class JobStatus(str, Enum):
 
 class JobMode(str, Enum):
     """任务模式枚举"""
+
     BITSTREAM_ANALYSIS = "bitstream_analysis"  # 码流分析：参考 + 多个编码文件
-    COMPARISON = "comparison"  # 对比模式：对比两个模板的执行结果
+    METRICS_COMPARISON = "metrics_comparison"  # 对比模式：对比两个模板的执行结果
     METRICS_ANALYSIS = "metrics_analysis"  # 单侧 Metrics 分析模板
 
 
@@ -80,7 +81,7 @@ class VideoInfo(BaseModel):
 
 
 class JobMetadata(BaseModel):
-    """任务元数据（持久化到 JSON）"""
+    """任务元数据"""
 
     job_id: str = Field(..., description="任务 ID (nanoid 12字符)")
     status: JobStatus = Field(default=JobStatus.PENDING, description="任务状态")
@@ -131,7 +132,7 @@ class JobMetadata(BaseModel):
 
 
 class Job(BaseModel):
-    """任务对象（内存中使用，包含文件路径）"""
+    """任务对象"""
 
     metadata: JobMetadata = Field(..., description="任务元数据")
     job_dir: Path = Field(..., description="任务目录路径")
