@@ -49,6 +49,8 @@ class MetricsTemplateListItem(BaseModel):
     source_dir: str
     bitstream_dir: str
     template_type: str = Field(default="metrics_analysis")
+    encoder_params: Optional[str] = None
+    bitrate_points: List[float] = Field(default_factory=list)
 
 
 class ValidateMetricsTemplateResponse(BaseModel):

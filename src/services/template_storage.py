@@ -165,6 +165,39 @@ class TemplateStorage:
         except Exception:
             return False
 
+    def copy_template(self, template_id: str) -> Optional[EncodingTemplate]:
+        """
+        复制模板
+
+        Args:
+            template_id: 源模板 ID
+
+        Returns:
+            新创建的 EncodingTemplate 对象，如果源模板不存在则返回 None
+        """
+        source_template = self.get_template(template_id)
+        if not source_template:
+            return None
+
+        # 生成新的模板 ID
+        new_template_id = self.generate_template_id()
+
+        # 复制元数据并修改
+        source_metadata = source_template.metadata
+        new_metadata = EncodingTemplateMetadata(
+            template_id=new_template_id,
+            name=f"{source_metadata.name} copy",
+            description=source_metadata.description,
+            template_type=source_metadata.template_type,
+            anchor=source_metadata.anchor.model_copy(deep=True),
+            test=source_metadata.test.model_copy(deep=True) if source_metadata.test else None,
+            anchor_computed=False,  # 复制的模板需要重新计算
+            anchor_fingerprint=source_metadata.anchor_fingerprint,
+        )
+
+        # 创建新模板
+        return self.create_template(new_metadata)
+
     def generate_template_id(self) -> str:
         """
         生成唯一的模板 ID

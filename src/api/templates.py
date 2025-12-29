@@ -118,6 +118,10 @@ async def list_templates(
             test_source_dir=t.metadata.test.source_dir if t.metadata.test else None,
             test_bitstream_dir=t.metadata.test.bitstream_dir if t.metadata.test else None,
             anchor_computed=t.metadata.anchor_computed,
+            anchor_encoder_params=t.metadata.anchor.encoder_params,
+            anchor_bitrate_points=t.metadata.anchor.bitrate_points,
+            test_encoder_params=t.metadata.test.encoder_params if t.metadata.test else None,
+            test_bitrate_points=t.metadata.test.bitrate_points if t.metadata.test else [],
         )
         for t in templates
     ]
@@ -176,6 +180,26 @@ async def update_template(
     metadata = template.metadata
 
     return metadata.model_dump(mode="json")
+
+
+@router.post(
+    "/{template_id}/copy",
+    response_model=CreateTemplateResponse,
+    status_code=201,
+    summary="复制模板",
+)
+async def copy_template(template_id: str) -> CreateTemplateResponse:
+    """
+    复制模板，生成一个新的模板，名称后缀添加 copy
+
+    - **template_id**: 源模板 ID
+    """
+    new_template = template_storage.copy_template(template_id)
+
+    if not new_template:
+        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+
+    return CreateTemplateResponse(template_id=new_template.template_id)
 
 
 @router.delete(

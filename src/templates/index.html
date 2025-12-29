@@ -184,29 +184,29 @@ function updateTemplateInfo() {
       <div class="space-y-1">
         <p><span class="font-medium text-gray-700">描述：</span>${escapeHtml(desc)}</p>
         <div class="text-xs text-gray-600 mt-2">
-          <div>源目录: ${escapeHtml(tpl.source_dir || '')}</div>
-          <div>码流目录: ${escapeHtml(tpl.bitstream_dir || '')}</div>
+          <div><span class="font-medium">编码参数:</span> ${escapeHtml(tpl.encoder_params || '无')}</div>
+          <div><span class="font-medium">码率点位:</span> ${tpl.bitrate_points && tpl.bitrate_points.length ? tpl.bitrate_points.join(', ') : '无'}</div>
         </div>
         <p class="text-xs text-gray-400">模板 ID：${tpl.template_id}</p>
       </div>
     `;
     templateInfo.innerHTML = infoHtml;
   } else {
-    const anchorInfo = `
-      <div class="text-xs text-gray-600 mt-2">
-        <div>Anchor 源: ${escapeHtml(tpl.anchor_source_dir || '')}</div>
-        <div>Anchor 码流: ${escapeHtml(tpl.anchor_bitstream_dir || '')}</div>
-        <div>Anchor 已计算: ${tpl.anchor_computed ? '是' : '否'}</div>
-        <div>Test 源: ${escapeHtml(tpl.test_source_dir || '')}</div>
-        <div>Test 码流: ${escapeHtml(tpl.test_bitstream_dir || '')}</div>
-      </div>`;
-    templateInfo.innerHTML = `
+    const infoHtml = `
       <div class="space-y-1">
         <p><span class="font-medium text-gray-700">描述：</span>${escapeHtml(desc)}</p>
-        ${anchorInfo}
+        <div class="text-xs text-gray-600 mt-2">
+          <div class="font-medium text-gray-700">Anchor:</div>
+          <div class="ml-2">编码参数: ${escapeHtml(tpl.anchor_encoder_params || '无')}</div>
+          <div class="ml-2">码率点位: ${tpl.anchor_bitrate_points && tpl.anchor_bitrate_points.length ? tpl.anchor_bitrate_points.join(', ') : '无'}</div>
+          <div class="font-medium text-gray-700 mt-1">Test:</div>
+          <div class="ml-2">编码参数: ${escapeHtml(tpl.test_encoder_params || '无')}</div>
+          <div class="ml-2">码率点位: ${tpl.test_bitrate_points && tpl.test_bitrate_points.length ? tpl.test_bitrate_points.join(', ') : '无'}</div>
+        </div>
         <p class="text-xs text-gray-400">模板 ID：${tpl.template_id}</p>
       </div>
     `;
+    templateInfo.innerHTML = infoHtml;
   }
   templateInfo.classList.remove('hidden');
 }

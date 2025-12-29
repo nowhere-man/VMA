@@ -69,3 +69,7 @@ class TemplateListItem(BaseModel):
     test_source_dir: Optional[str] = None
     test_bitstream_dir: Optional[str] = None
     anchor_computed: bool = False
+    anchor_encoder_params: Optional[str] = None
+    anchor_bitrate_points: List[float] = Field(default_factory=list)
+    test_encoder_params: Optional[str] = None
+    test_bitrate_points: List[float] = Field(default_factory=list)

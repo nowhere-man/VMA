@@ -68,6 +68,8 @@ async def list_metrics_templates(limit: Optional[int] = None) -> List[MetricsTem
                 source_dir=t.metadata.anchor.source_dir,
                 bitstream_dir=t.metadata.anchor.bitstream_dir,
                 template_type=t.metadata.template_type.value,
+                encoder_params=t.metadata.anchor.encoder_params,
+                bitrate_points=t.metadata.anchor.bitrate_points,
             )
         )
     return items
@@ -118,6 +120,29 @@ async def delete_metrics_template(template_id: str) -> None:
     if not template or template.metadata.template_type != TemplateType.METRICS_ANALYSIS:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     template_storage.delete_template(template_id)
+
+
+@router.post(
+    "/templates/{template_id}/copy",
+    response_model=dict,
+    status_code=201,
+    summary="复制 Metrics 分析模板",
+)
+async def copy_metrics_template(template_id: str) -> dict:
+    """
+    复制 Metrics 分析模板，生成一个新的模板，名称后缀添加 copy
+
+    - **template_id**: 源模板 ID
+    """
+    template = template_storage.get_template(template_id)
+    if not template or template.metadata.template_type != TemplateType.METRICS_ANALYSIS:
+        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
+
+    new_template = template_storage.copy_template(template_id)
+    if not new_template:
+        raise HTTPException(status_code=500, detail="Failed to copy template")
+
+    return {"template_id": new_template.template_id, "status": "created"}
 
 
 @router.get(
