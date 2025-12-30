@@ -342,14 +342,14 @@ async def _encode_side(
     sources: List[SourceInfo],
     recompute: bool,
     job=None,
-) -> Tuple[Dict[str, List[Path]], Dict[str, List[PerformanceData]]]:
+) -> Tuple[Dict[str, Tuple[List[Path], int, int, float]], Dict[str, List[PerformanceData]]]:
     """
     编码一侧（Anchor 或 Test）的所有源文件
     返回: (outputs, performance_data)
-        - outputs: {source_stem: [encoded_path, ...]}
+        - outputs: {source_stem: (encoded_paths, out_width, out_height, out_fps)}
         - performance_data: {source_stem: [PerformanceData, ...]}
     """
-    outputs: Dict[str, List[Path]] = {}
+    outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
     perf_data: Dict[str, List[PerformanceData]] = {}
     side_dir = Path(side.bitstream_dir)
     side_dir.mkdir(parents=True, exist_ok=True)
@@ -357,6 +357,8 @@ async def _encode_side(
     for src in sources:
         file_outputs: List[Path] = []
         file_perfs: List[PerformanceData] = []
+        out_width, out_height, out_fps = src.width, src.height, src.fps
+
         for val in side.bitrate_points or []:
             if side.skip_encode:
                 stem = _build_output_stem(src.path, side.rate_control.value if side.rate_control else "rc", val)
@@ -374,7 +376,16 @@ async def _encode_side(
                 file_perfs.append(PerformanceData())  # 复用已有码流时无性能数据
                 continue
 
-            cmd = _build_encode_cmd(side.encoder_type, side.encoder_params or "", side.rate_control.value, val, src, out_path)
+            cmd, out_width, out_height, out_fps = _build_encode_cmd(
+                side.encoder_type,
+                side.encoder_params or "",
+                side.rate_control.value,
+                val,
+                src,
+                out_path,
+                shortest_size=side.shortest_size,
+                target_fps=side.target_fps,
+            )
             log = _start_command(job, "encode", cmd, src.path, job_storage)
 
             # 使用带性能采集的编码函数
@@ -386,7 +397,7 @@ async def _encode_side(
             _finish_command(job, log, CommandStatus.COMPLETED, job_storage)
             file_outputs.append(out_path)
             file_perfs.append(perf)
-        outputs[src.path.stem] = file_outputs
+        outputs[src.path.stem] = (file_outputs, out_width, out_height, out_fps)
         perf_data[src.path.stem] = file_perfs
     return outputs, perf_data
 
@@ -498,8 +509,14 @@ async def run_template(
 
     for src in ordered_sources:
         key = src.path.stem
-        anchor_paths = anchor_outputs.get(key, [])
-        test_paths = test_outputs.get(key, [])
+        anchor_info = anchor_outputs.get(key)
+        test_info = test_outputs.get(key)
+
+        if not anchor_info or not test_info:
+            raise ValueError(f"缺少码流: {src.path.name}")
+
+        anchor_paths, _anchor_w, _anchor_h, _anchor_fps = anchor_info
+        test_paths, _test_w, _test_h, _test_fps = test_info
 
         if not anchor_paths or not test_paths:
             raise ValueError(f"缺少码流: {src.path.name}")
@@ -515,6 +532,7 @@ async def run_template(
             raw_height=src.height if src.is_yuv else None,
             raw_fps=src.fps if src.is_yuv else None,
             raw_pix_fmt=src.pix_fmt,
+            upscale_to_source=template.metadata.anchor.upscale_to_source,
             add_command_callback=_add_cmd,
             update_status_callback=_update_cmd,
         )
@@ -526,6 +544,7 @@ async def run_template(
             raw_height=src.height if src.is_yuv else None,
             raw_fps=src.fps if src.is_yuv else None,
             raw_pix_fmt=src.pix_fmt,
+            upscale_to_source=template.metadata.test.upscale_to_source,
             add_command_callback=_add_cmd,
             update_status_callback=_update_cmd,
         )

@@ -37,6 +37,12 @@ class TemplateSideConfig(BaseModel):
     bitrate_points: List[float] = Field(default_factory=list, description="码率点列表（支持浮点）")
     bitstream_dir: str = Field(..., description="码流目录（平铺）")
 
+    # 视频处理配置
+    shortest_size: Optional[int] = Field(None, description="最短边尺寸（可选，默认使用源视频分辨率）")
+    target_fps: Optional[float] = Field(None, description="目标帧率（可选，默认使用源视频帧率）")
+    upscale_to_source: bool = Field(default=True, description="Metrics策略：True=码流上采样到源分辨率，False=源视频下采样到码流分辨率")
+    concurrency: int = Field(default=1, description="并发数量")
+
     model_config = ConfigDict(extra="ignore")
 
     @model_validator(mode="after")

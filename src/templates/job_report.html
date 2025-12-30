@@ -23,11 +23,11 @@
                 <dd class="mt-1 text-sm font-mono text-gray-900">{{ job.job_id }}</dd>
             </div>
             <div>
-                <dt class="text-sm font-medium text-gray-500">模式</dt>
+                <dt class="text-sm font-medium text-gray-500">Job Mode</dt>
 	                <dd class="mt-1 text-sm text-gray-900">
-	                    {% if job.mode == 'bitstream_analysis' %}码流分析
-	                    {% elif job.mode == 'metrics_comparison' %}模板对比模式
-	                    {% else %}{{ job.mode }}{% endif %}
+	                    {% if job.mode == 'bitstream_analysis' %}Bitstream Analysis
+	                    {% elif job.mode == 'metrics_comparison' %}Metrics Comparison
+	                    {% else %}Metrics Analysis{% endif %}
 	                </dd>
             </div>
             <div>

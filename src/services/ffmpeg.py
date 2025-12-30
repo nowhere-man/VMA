@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.config import settings
 from src.utils.metrics import parse_psnr_summary, parse_ssim_summary, parse_vmaf_summary
+from src.utils.video_processing import build_scoring_vf_filter
 
 
 async def _wait_for_process(process, timeout: int) -> Tuple[bytes, bytes]:
@@ -522,6 +523,242 @@ class FFmpegService:
             add_command_callback, update_status_callback,
             command_type, source_file or str(distorted_path),
         )
+
+    async def calculate_metrics_pipeline(
+        self,
+        reference_path: Path,
+        encoded_path: Path,
+        analysis_dir: Path,
+        src_width: int,
+        src_height: int,
+        src_fps: float,
+        enc_width: int,
+        enc_height: int,
+        enc_fps: float,
+        upscale_to_source: bool = True,
+        ref_input_format: Optional[str] = None,
+        enc_input_format: Optional[str] = None,
+        ref_is_yuv: bool = False,
+        enc_is_yuv: bool = False,
+        ref_pix_fmt: str = "yuv420p",
+        enc_pix_fmt: str = "yuv420p",
+        add_command_callback=None,
+        update_status_callback=None,
+    ) -> Dict[str, Any]:
+        """
+        使用管道方式计算质量指标（PSNR/SSIM/VMAF）
+
+        不保存临时 YUV 文件，通过 shell 管道连接多个 ffmpeg 进程。
+
+        Args:
+            reference_path: 源视频路径
+            encoded_path: 编码后视频路径
+            analysis_dir: 分析结果目录
+            src_width: 源视频宽度
+            src_height: 源视频高度
+            src_fps: 源视频帧率
+            enc_width: 编码后视频宽度
+            enc_height: 编码后视频高度
+            enc_fps: 编码后视频帧率
+            upscale_to_source: Metrics策略，True=码流上采样到源分辨率
+            ref_input_format: 源视频输入格式（可选，用于裸码流如 h264/hevc）
+            enc_input_format: 编码视频输入格式（可选，用于裸码流如 h264/hevc）
+            ref_is_yuv: 源视频是否为 YUV 格式
+            enc_is_yuv: 编码视频是否为 YUV 格式
+            ref_pix_fmt: 源视频像素格式（YUV 时使用）
+            enc_pix_fmt: 编码视频像素格式（YUV 时使用）
+            add_command_callback: 添加命令回调
+            update_status_callback: 更新状态回调
+
+        Returns:
+            包含 psnr, ssim, vmaf, vmaf_neg 的字典
+        """
+        # 构建打分滤镜
+        ref_vf_filter, enc_vf_filter, score_width, score_height, score_fps = build_scoring_vf_filter(
+            src_width=src_width,
+            src_height=src_height,
+            src_fps=src_fps,
+            enc_width=enc_width,
+            enc_height=enc_height,
+            enc_fps=enc_fps,
+            upscale_to_source=upscale_to_source,
+        )
+
+        # 输出文件路径
+        psnr_log = analysis_dir / "psnr.log"
+        ssim_log = analysis_dir / "ssim.log"
+        vmaf_csv = analysis_dir / "vmaf.csv"
+
+        # 构建源视频处理命令
+        ref_cmd_parts = [self.ffmpeg_path, "-y"]
+        if ref_is_yuv:
+            ref_cmd_parts.extend([
+                "-f", "rawvideo",
+                "-pix_fmt", ref_pix_fmt,
+                "-s", f"{src_width}x{src_height}",
+                "-r", str(src_fps),
+            ])
+        elif ref_input_format:
+            ref_cmd_parts.extend(["-f", ref_input_format])
+        ref_cmd_parts.extend(["-i", str(reference_path)])
+        if ref_vf_filter:
+            ref_cmd_parts.extend(["-vf", ref_vf_filter + ",format=yuv420p"])
+        else:
+            ref_cmd_parts.extend(["-vf", "format=yuv420p"])
+        ref_cmd_parts.extend(["-c:v", "rawvideo", "-f", "rawvideo", "-an", "-"])
+
+        # 构建编码视频处理命令
+        enc_cmd_parts = [self.ffmpeg_path, "-y"]
+        if enc_is_yuv:
+            enc_cmd_parts.extend([
+                "-f", "rawvideo",
+                "-pix_fmt", enc_pix_fmt,
+                "-s", f"{enc_width}x{enc_height}",
+                "-r", str(enc_fps),
+            ])
+        elif enc_input_format:
+            enc_cmd_parts.extend(["-f", enc_input_format])
+        enc_cmd_parts.extend(["-i", str(encoded_path)])
+        if enc_vf_filter:
+            enc_cmd_parts.extend(["-vf", enc_vf_filter + ",format=yuv420p"])
+        else:
+            enc_cmd_parts.extend(["-vf", "format=yuv420p"])
+        enc_cmd_parts.extend(["-c:v", "rawvideo", "-f", "rawvideo", "-an", "-"])
+
+        results = {}
+
+        # 计算 PSNR
+        psnr_result = await self._run_pipeline_metric(
+            ref_cmd_parts=ref_cmd_parts,
+            enc_cmd_parts=enc_cmd_parts,
+            score_width=score_width,
+            score_height=score_height,
+            score_fps=score_fps,
+            metric_filter=f"psnr=stats_file={psnr_log}",
+            metric_name="psnr",
+            output_path=psnr_log,
+            parse_func=parse_psnr_summary,
+            add_command_callback=add_command_callback,
+            update_status_callback=update_status_callback,
+            source_file=str(encoded_path),
+        )
+        results["psnr"] = psnr_result
+
+        # 计算 SSIM
+        ssim_result = await self._run_pipeline_metric(
+            ref_cmd_parts=ref_cmd_parts,
+            enc_cmd_parts=enc_cmd_parts,
+            score_width=score_width,
+            score_height=score_height,
+            score_fps=score_fps,
+            metric_filter=f"ssim=stats_file={ssim_log}",
+            metric_name="ssim",
+            output_path=ssim_log,
+            parse_func=parse_ssim_summary,
+            add_command_callback=add_command_callback,
+            update_status_callback=update_status_callback,
+            source_file=str(encoded_path),
+        )
+        results["ssim"] = ssim_result
+
+        # 计算 VMAF（同时计算 vmaf 和 vmaf_neg）
+        vmaf_model = "version=vmaf_v0.6.1\\:name=vmaf|version=vmaf_v0.6.1neg\\:name=vmaf_neg"
+        vmaf_filter = f"libvmaf='model={vmaf_model}':n_threads=8:log_fmt=csv:log_path={vmaf_csv}"
+        vmaf_result = await self._run_pipeline_metric(
+            ref_cmd_parts=ref_cmd_parts,
+            enc_cmd_parts=enc_cmd_parts,
+            score_width=score_width,
+            score_height=score_height,
+            score_fps=score_fps,
+            metric_filter=vmaf_filter,
+            metric_name="vmaf",
+            output_path=vmaf_csv,
+            parse_func=parse_vmaf_summary,
+            add_command_callback=add_command_callback,
+            update_status_callback=update_status_callback,
+            source_file=str(encoded_path),
+        )
+        results["vmaf"] = vmaf_result
+
+        return results
+
+    async def _run_pipeline_metric(
+        self,
+        ref_cmd_parts: List[str],
+        enc_cmd_parts: List[str],
+        score_width: int,
+        score_height: int,
+        score_fps: float,
+        metric_filter: str,
+        metric_name: str,
+        output_path: Path,
+        parse_func: Callable,
+        add_command_callback=None,
+        update_status_callback=None,
+        source_file: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        使用管道方式运行单个指标计算
+
+        通过 shell 命令连接多个 ffmpeg 进程：
+        - 进程1：处理源视频（帧率+分辨率转换）-> rawvideo
+        - 进程2：处理编码视频（分辨率转换）-> rawvideo
+        - 进程3：接收两个 rawvideo 输入，计算指标
+        """
+        # 构建完整的 shell 命令
+        # 使用 process substitution 来实现两个输入管道
+        ref_cmd_str = " ".join(ref_cmd_parts)
+        enc_cmd_str = " ".join(enc_cmd_parts)
+
+        # 打分命令：接收两个 rawvideo 输入
+        # 注意：ffmpeg 滤镜的第一个输入为待测(distorted)，第二个为参考(reference)
+        score_cmd = (
+            f"{self.ffmpeg_path} -y "
+            f"-f rawvideo -pix_fmt yuv420p -s {score_width}x{score_height} -r {score_fps} -i pipe:3 "
+            f"-f rawvideo -pix_fmt yuv420p -s {score_width}x{score_height} -r {score_fps} -i pipe:4 "
+            f"-filter_complex '{metric_filter}' -f null -"
+        )
+
+        # 完整的 shell 命令
+        full_cmd = f"({enc_cmd_str}) 3>&1 | ({ref_cmd_str}) 4>&1 | {score_cmd}"
+
+        # 记录命令
+        cmd_id = None
+        if add_command_callback:
+            cmd_id = add_command_callback(metric_name, full_cmd, source_file)
+        if update_status_callback and cmd_id:
+            update_status_callback(cmd_id, "running")
+
+        try:
+            # 使用 shell=True 执行管道命令
+            process = await asyncio.create_subprocess_shell(
+                full_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await _wait_for_process(process, settings.ffmpeg_timeout)
+
+            if process.returncode != 0:
+                error_msg = stderr.decode()
+                if update_status_callback and cmd_id:
+                    update_status_callback(cmd_id, "failed", error_msg)
+                raise RuntimeError(f"{metric_name} calculation failed: {error_msg}")
+
+            # 解析结果
+            result = parse_func(output_path)
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "completed")
+            return result
+
+        except asyncio.TimeoutError:
+            process.kill()
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "failed", f"{metric_name} calculation timed out")
+            raise RuntimeError(f"{metric_name} calculation timed out")
+        except Exception as e:
+            if update_status_callback and cmd_id:
+                update_status_callback(cmd_id, "failed", str(e))
+            raise RuntimeError(f"{metric_name} calculation failed: {str(e)}")
 
 # 全局单例
 ffmpeg_service = FFmpegService(

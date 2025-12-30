@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from src.models import CommandLog, CommandStatus
 from src.models.template import EncoderType
 from src.services.ffmpeg import ffmpeg_service
+from src.utils.video_processing import build_encode_vf_filter
 
 
 def now():
@@ -157,7 +158,9 @@ def build_encode_cmd(
     src: SourceInfo,
     output: Path,
     encoder_path: Optional[str] = None,
-) -> List[str]:
+    shortest_size: Optional[int] = None,
+    target_fps: Optional[float] = None,
+) -> Tuple[List[str], int, int, float]:
     """
     构建编码命令
 
@@ -169,9 +172,27 @@ def build_encode_cmd(
         src: 源视频信息
         output: 输出文件路径
         encoder_path: 自定义编码器路径（可选）
+        shortest_size: 最短边尺寸（可选，不填则使用源视频分辨率）
+        target_fps: 目标帧率（可选，不填则使用源视频帧率）
+
+    Returns:
+        (cmd, out_width, out_height, out_fps)
+        - cmd: 编码命令列表
+        - out_width: 输出宽度
+        - out_height: 输出高度
+        - out_fps: 输出帧率
     """
     val_str = str(val)
     ffmpeg_path = encoder_path or ffmpeg_service.ffmpeg_path
+
+    # 构建 -vf 滤镜
+    vf_filter, out_width, out_height, out_fps = build_encode_vf_filter(
+        src_width=src.width,
+        src_height=src.height,
+        src_fps=src.fps,
+        shortest_size=shortest_size,
+        target_fps=target_fps,
+    )
 
     if enc == EncoderType.FFMPEG:
         cmd = [ffmpeg_path, "-y"]
@@ -183,17 +204,21 @@ def build_encode_cmd(
                 "-r", str(src.fps),
             ]
         cmd += ["-i", str(src.path)]
-        if not src.is_yuv and not is_container_file(src.path):
-            cmd += ["-s:v", f"{src.width}x{src.height}", "-r", str(src.fps)]
+
+        # 使用 -vf 滤镜进行帧率和分辨率转换
+        if vf_filter:
+            cmd += ["-vf", vf_filter]
+
         cmd += strip_rc_tokens(enc, params)
         if rc.lower() == "crf":
             cmd += ["-crf", val_str]
         else:
             cmd += ["-b:v", f"{val_str}k"]
         cmd += [str(output)]
-        return cmd
+        return cmd, out_width, out_height, out_fps
 
-    # 非 FFmpeg 编码器
+    # 非 FFmpeg 编码器（x264/x265/vvenc）
+    # 这些编码器需要通过管道接收 rawvideo 输入
     cmd = [ffmpeg_path, "-y"]
     if src.is_yuv:
         cmd += [
@@ -206,6 +231,10 @@ def build_encode_cmd(
     else:
         cmd += ["-i", str(src.path)]
 
+    # 使用 -vf 滤镜进行帧率和分辨率转换
+    if vf_filter:
+        cmd += ["-vf", vf_filter]
+
     cmd += ["-c:v", enc.value]
     cmd += strip_rc_tokens(enc, params)
     if rc.lower() == "crf":
@@ -213,7 +242,7 @@ def build_encode_cmd(
     else:
         cmd += ["--bitrate", val_str]
     cmd += [str(output)]
-    return cmd
+    return cmd, out_width, out_height, out_fps
 
 
 def start_command(job, command_type: str, command: List[str], source_file: Optional[str], storage) -> Optional[CommandLog]:
