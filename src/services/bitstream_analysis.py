@@ -346,6 +346,7 @@ async def analyze_bitstream_job(
         raw_height=raw_h,
         raw_fps=raw_fps,
         raw_pix_fmt=raw_pix_fmt,
+        upscale_to_source=job.metadata.upscale_to_source,
         add_command_callback=add_command_callback,
         update_status_callback=update_status_callback,
     )

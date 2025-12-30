@@ -42,6 +42,15 @@
                         <div id="refFileName" class="text-xs text-gray-600"></div>
                         <p class="text-xs text-gray-500 mt-1">YUV文件名格式：name_WxH_FPS.yuv，系统会自动解析。</p>
                     </div>
+
+                    <!-- Metrics 策略 -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">Metrics策略</label>
+                        <select id="upscaleToSource" name="upscale_to_source" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="true" selected>转码流上采样到源视频分辨率</option>
+                            <option value="false">源视频下采样到转码流分辨率</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Encoded -->
@@ -64,7 +73,7 @@
                             将文件拖拽到此处上传
                         </div>
                         <div id="encFileName" class="text-xs text-gray-600"></div>
-                        <p class="text-xs text-gray-500 mt-1">支持容器、h264/h265 裸流，或符合 name_WxH_FPS.yuv 命名的 YUV 文件，YUV 会自动解析分辨率/帧率。</p>
+                        <p class="text-xs text-gray-500 mt-1">YUV文件名格式：name_WxH_FPS.yuv。</p>
                     </div>
                 </div>
             </div>

@@ -1,7 +1,5 @@
 # VMA - Video Metrics Analyzer
 
-VMA 是一个视频编码质量分析工具，用于计算和对比视频编码的质量指标（PSNR、SSIM、VMAF）。
-
 ## 项目架构
 
 ```

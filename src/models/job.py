@@ -102,6 +102,7 @@ class JobMetadata(BaseModel):
     rawvideo_height: Optional[int] = Field(None, description="YUV 高度（仅 rawvideo）")
     rawvideo_fps: Optional[float] = Field(None, description="YUV 帧率（仅 rawvideo）")
     rawvideo_pix_fmt: str = Field(default="yuv420p", description="YUV 像素格式（默认 yuv420p）")
+    upscale_to_source: bool = Field(default=True, description="Metrics策略：True=转码流上采样到源分辨率")
 
     # 模板信息
     template_id: Optional[str] = Field(None, description="模板 ID")

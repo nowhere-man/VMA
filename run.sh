@@ -12,34 +12,18 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     exit 1
 fi
 
-read_config_vars() {
-python - "$CONFIG_FILE" <<'PY'
-import sys, yaml, shlex
-config_path = sys.argv[1]
-with open(config_path, "r", encoding="utf-8") as f:
-    cfg = yaml.safe_load(f) or {}
-
-required = [
-    "host",
-    "fastapi_port",
-    "streamlit_port",
-    "jobs_root_dir",
-    "templates_root_dir",
-    "reports_root_dir",
-    "log_level",
-]
-missing = [k for k in required if k not in cfg]
-if missing:
-    print(f"Missing config keys in {config_path}: {', '.join(missing)}", file=sys.stderr)
-    sys.exit(1)
-
-for key in required:
-    val = str(cfg[key])
-    print(f"{key.upper()}={shlex.quote(val)}")
-PY
+parse_yaml() {
+    local key="$1"
+    grep "^${key}:" "$CONFIG_FILE" | sed 's/^[^:]*:[[:space:]]*//' | sed 's/^["'"'"']\(.*\)["'"'"']$/\1/' | sed 's/^null$//'
 }
 
-eval "$(read_config_vars)" || exit 1
+HOST=$(parse_yaml "host")
+FASTAPI_PORT=$(parse_yaml "fastapi_port")
+STREAMLIT_PORT=$(parse_yaml "streamlit_port")
+JOBS_ROOT_DIR=$(parse_yaml "jobs_root_dir")
+TEMPLATES_ROOT_DIR=$(parse_yaml "templates_root_dir")
+REPORTS_ROOT_DIR=$(parse_yaml "reports_root_dir")
+LOG_LEVEL=$(parse_yaml "log_level")
 
 echo "Starting VMA - Video Metrics Analyzer..."
 echo "================================================"
@@ -81,13 +65,12 @@ trap 'exit 0' SIGINT SIGTERM
 echo "Starting server..."
 echo "   Web UI:  http://${HOST}:${FASTAPI_PORT}"
 echo "   Reports: http://${HOST}:${STREAMLIT_PORT}"
-echo "   API:     http://${HOST}:${FASTAPI_PORT}/api/docs"
 echo ""
 .venv/bin/uvicorn src.main:app \
   --reload \
   --host "${HOST}" \
   --port "${FASTAPI_PORT}" \
-  --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
+  --log-level "${LOG_LEVEL}"
 
 echo "Press Ctrl+C to stop servers"
 echo ""

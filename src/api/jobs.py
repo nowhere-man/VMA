@@ -126,6 +126,7 @@ async def create_bitstream_job(
     encoded_paths: Optional[str] = Form(None),
     reference_file: Optional[UploadFile] = File(None),
     encoded_files: Optional[List[UploadFile]] = File(None),
+    upscale_to_source: str = Form("true"),
 ) -> CreateJobResponse:
     """
     创建码流分析任务，支持两种方式提供输入：
@@ -211,6 +212,7 @@ async def create_bitstream_job(
         rawvideo_width=ref_yuv_dims[0] if ref_yuv_dims else None,
         rawvideo_height=ref_yuv_dims[1] if ref_yuv_dims else None,
         rawvideo_fps=ref_yuv_dims[2] if ref_yuv_dims else None,
+        upscale_to_source=upscale_to_source.lower() == "true",
     )
     job = job_storage.create_job(metadata)
 

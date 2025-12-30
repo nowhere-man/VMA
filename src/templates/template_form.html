@@ -84,18 +84,19 @@
         <!-- 视频处理配置 -->
         <div class="grid md:grid-cols-3 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">最短边尺寸（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">最短边尺寸</label>
             <input id="anchor_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率</label>
             <input id="anchor_target_fps" type="number" step="0.001" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频帧率" />
           </div>
-          <div class="flex items-end pb-2">
-            <label class="flex items-center text-sm text-gray-700 space-x-2">
-              <input type="checkbox" id="anchor_upscale_to_source" class="h-4 w-4 text-blue-600 border-gray-300 rounded" checked />
-              <span>码流上采样到源分辨率</span>
-            </label>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Metrics 策略</label>
+            <select id="anchor_upscale_to_source" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
+              <option value="true" selected>转码流上采样到源流分辨率</option>
+              <option value="false">源视频下采样到转码流分辨率</option>
+            </select>
           </div>
         </div>
         <!-- 第三行：RC + 码率点位 -->
@@ -113,11 +114,11 @@
             <input id="anchor_bitrate_points" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="如：21,24,27,29" />
           </div>
         </div>
-        <!-- 第四行：码流目录 -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
-          <input id="anchor_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
-        </div>
+      </div>
+      <!-- 码流目录（始终显示） -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
+        <input id="anchor_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
       </div>
     </div>
 
@@ -157,18 +158,19 @@
         <!-- 视频处理配置 -->
         <div class="grid md:grid-cols-3 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">最短边尺寸（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">最短边尺寸</label>
             <input id="test_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率（可选）</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率</label>
             <input id="test_target_fps" type="number" step="0.001" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频帧率" />
           </div>
-          <div class="flex items-end pb-2">
-            <label class="flex items-center text-sm text-gray-700 space-x-2">
-              <input type="checkbox" id="test_upscale_to_source" class="h-4 w-4 text-blue-600 border-gray-300 rounded" checked />
-              <span>码流上采样到源分辨率</span>
-            </label>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Metrics 策略</label>
+            <select id="test_upscale_to_source" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
+              <option value="true" selected>转码流上采样到源流分辨率</option>
+              <option value="false">源视频下采样到转码流分辨率</option>
+            </select>
           </div>
         </div>
         <!-- 第三行：RC + 码率点位 -->
@@ -186,11 +188,11 @@
             <input id="test_bitrate_points" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="如：21,24,27,29" />
           </div>
         </div>
-        <!-- 第四行：码流目录 -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
-          <input id="test_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
-        </div>
+      </div>
+      <!-- 码流目录（始终显示） -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">码流目录<span class="text-red-500">*</span></label>
+        <input id="test_bitstream_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required />
       </div>
     </div>
 
@@ -321,7 +323,7 @@ function collectSide(prefix) {
     bitstream_dir: $(prefix + '_bitstream_dir').value.trim(),
     shortest_size: $(prefix + '_shortest_size').value ? parseInt($(prefix + '_shortest_size').value) : null,
     target_fps: $(prefix + '_target_fps').value ? parseFloat($(prefix + '_target_fps').value) : null,
-    upscale_to_source: $(prefix + '_upscale_to_source').checked,
+    upscale_to_source: $(prefix + '_upscale_to_source').value === 'true',
   };
 }
 
@@ -350,10 +352,6 @@ async function loadTemplate() {
         const el = $(prefix + '_' + suffix);
         if (el) el.value = value || '';
       };
-      const setChecked = (suffix, value) => {
-        const el = $(prefix + '_' + suffix);
-        if (el) el.checked = value !== false;
-      };
       setValue('source_dir', side.source_dir || '');
       setValue('bitstream_dir', side.bitstream_dir || '');
       const skipEl = $(prefix + '_skip');
@@ -365,7 +363,7 @@ async function loadTemplate() {
       setValue('bitrate_points', (side.bitrate_points || []).join(','));
       setValue('shortest_size', side.shortest_size || '');
       setValue('target_fps', side.target_fps || '');
-      setChecked('upscale_to_source', side.upscale_to_source);
+      setValue('upscale_to_source', side.upscale_to_source !== false ? 'true' : 'false');
     };
     fill('anchor', data.anchor);
     fill('test', data.test);
