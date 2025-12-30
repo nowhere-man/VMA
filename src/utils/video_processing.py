@@ -148,6 +148,7 @@ def build_scoring_vf_filter(
     enc_fps: float,
     upscale_to_source: bool = True,
     scale_algorithm: str = "bicubic",
+    target_fps: Optional[float] = None,
 ) -> Tuple[Optional[str], Optional[str], int, int, float]:
     """
     构建打分阶段的 -vf 滤镜字符串
@@ -161,6 +162,7 @@ def build_scoring_vf_filter(
         enc_fps: 编码后视频帧率
         upscale_to_source: Metrics策略，True=码流上采样到源分辨率
         scale_algorithm: 缩放算法，默认 bicubic
+        target_fps: 模板指定的目标帧率（优先使用）
 
     Returns:
         (ref_vf_filter, enc_vf_filter, score_width, score_height, score_fps)
@@ -170,8 +172,8 @@ def build_scoring_vf_filter(
         - score_height: 打分分辨率高度
         - score_fps: 打分帧率
     """
-    # 打分帧率 = 编码后帧率（源视频需要下采样到编码后帧率）
-    score_fps = enc_fps
+    # 打分帧率：优先使用模板的 target_fps，否则使用编码后帧率
+    score_fps = target_fps if target_fps else enc_fps
 
     if upscale_to_source:
         # 码流上采样到源分辨率

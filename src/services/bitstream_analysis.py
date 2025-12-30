@@ -97,6 +97,7 @@ async def build_bitstream_report(
     raw_fps: Optional[float] = None,
     raw_pix_fmt: str = "yuv420p",
     upscale_to_source: bool = True,
+    target_fps: Optional[float] = None,
     add_command_callback=None,
     update_status_callback=None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -112,6 +113,7 @@ async def build_bitstream_report(
         raw_width/raw_height/raw_fps: 参考为 YUV 时必填
         raw_pix_fmt: 参考 YUV 像素格式
         upscale_to_source: Metrics策略，True=码流上采样到源分辨率，False=源视频下采样到码流分辨率
+        target_fps: 模板指定的目标帧率（优先使用）
         add_command_callback/update_status_callback: 可选的命令日志回调
     """
     analysis_dir.mkdir(parents=True, exist_ok=True)
@@ -206,6 +208,7 @@ async def build_bitstream_report(
             enc_is_yuv=enc_is_yuv,
             ref_pix_fmt=raw_pix_fmt,
             enc_pix_fmt=raw_pix_fmt,
+            target_fps=target_fps,
             add_command_callback=add_command_callback,
             update_status_callback=update_status_callback,
         )
@@ -347,6 +350,7 @@ async def analyze_bitstream_job(
         raw_fps=raw_fps,
         raw_pix_fmt=raw_pix_fmt,
         upscale_to_source=job.metadata.upscale_to_source,
+        target_fps=None,
         add_command_callback=add_command_callback,
         update_status_callback=update_status_callback,
     )

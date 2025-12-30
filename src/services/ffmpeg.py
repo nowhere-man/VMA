@@ -542,6 +542,7 @@ class FFmpegService:
         enc_is_yuv: bool = False,
         ref_pix_fmt: str = "yuv420p",
         enc_pix_fmt: str = "yuv420p",
+        target_fps: Optional[float] = None,
         add_command_callback=None,
         update_status_callback=None,
     ) -> Dict[str, Any]:
@@ -567,6 +568,7 @@ class FFmpegService:
             enc_is_yuv: 编码视频是否为 YUV 格式
             ref_pix_fmt: 源视频像素格式（YUV 时使用）
             enc_pix_fmt: 编码视频像素格式（YUV 时使用）
+            target_fps: 模板指定的目标帧率（优先使用）
             add_command_callback: 添加命令回调
             update_status_callback: 更新状态回调
 
@@ -582,6 +584,7 @@ class FFmpegService:
             enc_height=enc_height,
             enc_fps=enc_fps,
             upscale_to_source=upscale_to_source,
+            target_fps=target_fps,
         )
 
         # 输出文件路径

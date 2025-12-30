@@ -350,7 +350,7 @@ async function loadTemplate() {
       if (!side) return;
       const setValue = (suffix, value) => {
         const el = $(prefix + '_' + suffix);
-        if (el) el.value = value || '';
+        if (el) el.value = value ?? '';
       };
       setValue('source_dir', side.source_dir || '');
       setValue('bitstream_dir', side.bitstream_dir || '');
@@ -429,8 +429,7 @@ form.addEventListener('submit', async (e) => {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || '保存失败');
-    const redirectType = type === 'metrics_analysis' ? '?type=metrics' : '';
-    window.location.href = '/templates' + redirectType;
+    window.location.href = '/templates';
   } catch (err) {
     errBox.textContent = err.message || '保存失败';
   } finally {

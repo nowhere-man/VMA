@@ -533,6 +533,7 @@ async def run_template(
             raw_fps=src.fps if src.is_yuv else None,
             raw_pix_fmt=src.pix_fmt,
             upscale_to_source=template.metadata.anchor.upscale_to_source,
+            target_fps=template.metadata.anchor.target_fps,
             add_command_callback=_add_cmd,
             update_status_callback=_update_cmd,
         )
@@ -545,6 +546,7 @@ async def run_template(
             raw_fps=src.fps if src.is_yuv else None,
             raw_pix_fmt=src.pix_fmt,
             upscale_to_source=template.metadata.test.upscale_to_source,
+            target_fps=template.metadata.test.target_fps,
             add_command_callback=_add_cmd,
             update_status_callback=_update_cmd,
         )

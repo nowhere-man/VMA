@@ -105,6 +105,7 @@ async def _analyze_single(
     encoded_paths: List[Path],
     analysis_dir: Path,
     upscale_to_source: bool,
+    target_fps: Optional[float],
     add_command,
     update_status,
 ):
@@ -118,6 +119,7 @@ async def _analyze_single(
         raw_fps=src.fps if src.is_yuv else None,
         raw_pix_fmt=src.pix_fmt,
         upscale_to_source=upscale_to_source,
+        target_fps=target_fps,
         add_command_callback=add_command,
         update_status_callback=update_status,
     )
@@ -177,6 +179,7 @@ class MetricsAnalysisRunner:
                 paths,
                 analysis_root / src.path.stem,
                 upscale_to_source=config.upscale_to_source,
+                target_fps=config.target_fps,
                 add_command=_add_cmd,
                 update_status=_update_cmd,
             )
