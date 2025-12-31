@@ -116,6 +116,35 @@ metrics = item                                 # ← 注意：直接是 item，�
 value = metrics.get("psnr", {}).get("psnr_avg")
 ```
 
+### TemplateSideConfig 数据结构
+
+**文件**：`src/models/template.py`
+
+**字段说明**：
+```python
+class TemplateSideConfig(BaseModel):
+    skip_encode: bool = False                    # 跳过编码
+    source_dir: str                              # 源视频目录
+    encoder_type: Optional[EncoderType]          # 编码器类型（ffmpeg/x264/x265/vvenc）
+    encoder_params: Optional[str]                # 编码器参数
+    rate_control: Optional[RateControl]          # 码控模式（crf/abr）
+    bitrate_points: List[float]                  # 码率点列表
+    bitstream_dir: str                           # 码流输出目录
+
+    # 视频处理配置
+    shortest_size: Optional[int]                 # 短边尺寸
+    target_fps: Optional[float]                  # 目标帧率
+    upscale_to_source: bool = True               # Metrics 策略
+    concurrency: int = 1                         # 并发任务数（默认1）
+```
+
+**重要字段**：
+- `concurrency`：并发任务数，控制同时执行的编码任务数量
+  - 默认值：1（串行执行）
+  - 适用场景：多视频、多码率点批量编码
+  - 技术实现：`asyncio.Semaphore` + `asyncio.gather()`
+  - 原子操作：编码 + 性能统计 + 打分
+
 ### ⚠️ 易错点：数据结构不匹配
 
 **错误案例**：
@@ -272,6 +301,80 @@ parse_vmaf_log(log_content) → {"summary": {...}, "frames": [...]}
 
 ---
 
+## 并发任务执行
+
+### 功能说明
+
+**用途**：在 Metrics Analysis 和 Metrics Comparison 中，支持并发执行多个编码任务以提高效率。
+
+**适用场景**：
+- 源视频数量多（如 100 个视频）
+- 每个视频需要编码多个码率点（如 4 个点位）
+- 总任务数 = 源视频数 × 码率点数（如 100 × 4 = 400 个任务）
+
+### 配置方式
+
+**位置**：模板创建/编辑表单，"视频处理配置"部分
+
+**字段**：`concurrency`（并发任务数）
+
+**默认值**：1（串行执行）
+
+**设置方式**：用户手动输入正整数
+
+### 技术实现
+
+**原子操作**：每个任务包含"编码+性能统计+打分"三个步骤
+
+**并发控制**：使用 `asyncio.Semaphore` 限制同时运行的任务数
+
+**代码位置**：
+- `src/services/metrics_comparison_runner.py:_encode_side()`（Metrics Comparison）
+- `src/services/metrics_analysis_runner.py:_encode()`（Metrics Analysis）
+
+**实现模式**：
+```python
+async def _encode_side(...) -> Tuple[Dict, Dict]:
+    concurrency = side.concurrency or 1
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def encode_single_task(src, val, src_idx, point_idx):
+        async with semaphore:
+            # 执行编码 + 性能监控 + 打分
+            return src_idx, point_idx, out_path, perf
+
+    # 创建所有任务
+    tasks = []
+    for src_idx, src in enumerate(sources):
+        for point_idx, val in enumerate(bitrate_points):
+            tasks.append(encode_single_task(src, val, src_idx, point_idx))
+
+    # 并发执行
+    results = await asyncio.gather(*tasks)
+
+    # 按原始顺序重组结果
+    # ...
+```
+
+### 特性说明
+
+**优点**：
+- 大幅提升多视频、多码率点场景的执行效率
+- 用户可根据机器性能灵活调整并发数
+- 保持结果顺序不变
+
+**限制**：
+- 不自动检测 CPU 核心数，由用户手动指定
+- 任何任务失败会立即停止所有任务（fail-fast）
+- 不提供进度反馈
+
+**注意事项**：
+- 并发数过高可能导致资源竞争（CPU、内存、磁盘 I/O）
+- 建议根据机器性能合理设置（如物理核心数的 50-80%）
+- 默认值为 1 保证稳定性和兼容性
+
+---
+
 ## BD-Rate 计算
 
 **文件**：`src/utils/bd_rate.py`
@@ -326,6 +429,7 @@ bd_metrics(r1, m1, r2, m2) → float  # BD-Metrics（绝对值）
 | `src/utils/encoding.py` | 编码命令构建 | 分辨率/帧率转换滤镜 |
 | `src/utils/bd_rate.py` | BD-Rate 计算 | 需要至少 4 个码率点 |
 | `src/utils/streamlit_helpers.py` | Streamlit 辅助函数 | `_metric_value()` 直接访问字段 |
+| `src/models/template.py` | 模板数据模型 | `TemplateSideConfig.concurrency` 字段 |
 
 ---
 
@@ -529,7 +633,7 @@ psnr = _metric_value(metrics, "psnr", "psnr_avg")
 ### 1. 数据结构混淆
 | 报告类型 | 数据结构 | 解析方式 |
 |---------|---------|---------|
-| Stream Analysis | `encoded[i].metrics.pnr.summary.psnr_avg` | `item.get("metrics").get("psnr").get("summary")` |
+| Stream Analysis | `encoded[i].metrics.psnr.summary.psnr_avg` | `item.get("metrics").get("psnr").get("summary")` |
 | Metrics Analysis | `encoded[i].psnr.psnr_avg` | `item` 直接 |
 | Metrics Comparison | `encoded[i].psnr.psnr_avg` | `item` 直接 |
 
@@ -545,6 +649,12 @@ psnr = _metric_value(metrics, "psnr", "psnr_avg")
 - Metrics 类型：使用 `parse_*_summary`
 - Stream 类型：使用 `parse_*_log`
 
+### 5. 并发任务配置
+- 默认值为 1（串行），不是自动检测 CPU 核心数
+- 并发数过高可能导致资源竞争（CPU/内存/磁盘 I/O）
+- 任何任务失败会立即停止所有任务（fail-fast）
+- 结果顺序保持不变（通过索引追踪重组）
+
 ---
 
 ## 用户明确要求
@@ -553,3 +663,8 @@ psnr = _metric_value(metrics, "psnr", "psnr_avg")
 2. **代码复用**：性能监控、BD-Rate 计算、指标解析等功能模块化
 3. **报告结构一致**：任务对比报告和模板对比报告结构完全相同
 4. **交互体验**：侧边栏导航、平滑滚动、统一视觉风格
+5. **并发任务执行**：
+   - 支持用户手动配置并发数（默认为 1）
+   - 不自动检测 CPU 核心数，简化实现
+   - 原子操作：编码 + 性能统计 + 打分
+   - 任何失败立即停止所有任务（fail-fast）

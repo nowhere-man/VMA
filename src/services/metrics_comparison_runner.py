@@ -179,38 +179,46 @@ async def _encode_side(
     job=None,
 ) -> Tuple[Dict[str, Tuple[List[Path], int, int, float]], Dict[str, List[PerformanceData]]]:
     """
-    编码一侧（Anchor 或 Test）的所有源文件
+    编码一侧（Anchor 或 Test）的所有源文件（支持并发）
     返回: (outputs, performance_data)
         - outputs: {source_stem: (encoded_paths, out_width, out_height, out_fps)}
         - performance_data: {source_stem: [PerformanceData, ...]}
     """
-    outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
-    perf_data: Dict[str, List[PerformanceData]] = {}
+    import asyncio
+
     side_dir = Path(side.bitstream_dir)
     side_dir.mkdir(parents=True, exist_ok=True)
 
-    for src in sources:
-        file_outputs: List[Path] = []
-        file_perfs: List[PerformanceData] = []
-        out_width, out_height, out_fps = src.width, src.height, src.fps
+    concurrency = side.concurrency or 1
+    semaphore = asyncio.Semaphore(concurrency)
 
-        for val in side.bitrate_points or []:
+    async def encode_single_task(
+        src: SourceInfo,
+        val: float,
+        src_idx: int,
+        point_idx: int,
+    ) -> Tuple[int, int, Path, Optional[PerformanceData]]:
+        """单个编码任务"""
+        async with semaphore:
+            out_width, out_height, out_fps = src.width, src.height, src.fps
+
+            # 检查是否跳过编码
             if side.skip_encode:
                 stem = _build_output_stem(src.path, side.rate_control.value if side.rate_control else "rc", val)
                 matches = list(side_dir.glob(f"{stem}.*"))
                 if matches:
-                    file_outputs.append(matches[0])
-                    file_perfs.append(PerformanceData())  # 跳过编码时无性能数据
-                    continue
+                    return src_idx, point_idx, matches[0], None
                 raise FileNotFoundError(f"缺少码流: {stem}")
+
+            # 检查是否复用已有码流
             stem = _build_output_stem(src.path, side.rate_control.value if side.rate_control else "rc", val)
             ext = _output_extension(side.encoder_type, src, is_container=not src.is_yuv and _is_container_file(src.path), params=side.encoder_params or "")
             out_path = side_dir / f"{stem}{ext}"
-            if not recompute and out_path.exists():
-                file_outputs.append(out_path)
-                file_perfs.append(PerformanceData())  # 复用已有码流时无性能数据
-                continue
 
+            if not recompute and out_path.exists():
+                return src_idx, point_idx, out_path, None
+
+            # 执行编码
             cmd, out_width, out_height, out_fps = _build_encode_cmd(
                 side.encoder_type,
                 side.encoder_params or "",
@@ -223,17 +231,48 @@ async def _encode_side(
             )
             log = _start_command(job, "encode", cmd, src.path, job_storage)
 
-            # 使用带性能采集的编码函数
             returncode, _, stderr, perf = await _run_encode_with_perf(cmd, side.encoder_type)
 
             if returncode != 0:
                 _finish_command(job, log, CommandStatus.FAILED, job_storage, error=stderr.decode(errors="ignore"))
                 raise RuntimeError(f"编码失败 {out_path.name}: {stderr.decode(errors='ignore')}")
+
             _finish_command(job, log, CommandStatus.COMPLETED, job_storage)
+            return src_idx, point_idx, out_path, perf
+
+    # 创建所有编码任务
+    tasks = []
+    for src_idx, src in enumerate(sources):
+        for point_idx, val in enumerate(side.bitrate_points or []):
+            tasks.append(encode_single_task(src, val, src_idx, point_idx))
+
+    # 并发执行所有编码任务
+    results = await asyncio.gather(*tasks)
+
+    # 重组结果（按原始顺序）
+    outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
+    perf_data: Dict[str, List[Optional[PerformanceData]]] = {}
+
+    for src in sources:
+        src_results = [r for r in results if r[0] == sources.index(src)]
+        file_outputs = []
+        file_perfs = []
+
+        # 按码率点顺序排序
+        src_results.sort(key=lambda x: x[1])
+
+        for _, point_idx, out_path, perf in src_results:
             file_outputs.append(out_path)
             file_perfs.append(perf)
+
+        # 获取输出尺寸和帧率（从第一个有效结果）
+        out_width = src.width
+        out_height = src.height
+        out_fps = src.fps
+
         outputs[src.path.stem] = (file_outputs, out_width, out_height, out_fps)
         perf_data[src.path.stem] = file_perfs
+
     return outputs, perf_data
 
 

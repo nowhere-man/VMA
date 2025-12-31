@@ -82,7 +82,7 @@
           <p id="anchor_params_hint" class="mt-1 text-xs text-gray-500"></p>
         </div>
         <!-- 视频处理配置 -->
-        <div class="grid md:grid-cols-3 gap-4">
+        <div class="grid md:grid-cols-4 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">短边尺寸</label>
             <input id="anchor_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
@@ -97,6 +97,10 @@
               <option value="true" selected>转码流上采样到源流分辨率</option>
               <option value="false">源视频下采样到转码流分辨率</option>
             </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">并发任务数</label>
+            <input id="anchor_concurrency" type="number" min="1" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="默认为1" />
           </div>
         </div>
         <!-- 第三行：RC + 码率点位 -->
@@ -156,7 +160,7 @@
           <p id="test_params_hint" class="mt-1 text-xs text-gray-500"></p>
         </div>
         <!-- 视频处理配置 -->
-        <div class="grid md:grid-cols-3 gap-4">
+        <div class="grid md:grid-cols-4 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">短边尺寸</label>
             <input id="test_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
@@ -171,6 +175,10 @@
               <option value="true" selected>转码流上采样到源流分辨率</option>
               <option value="false">源视频下采样到转码流分辨率</option>
             </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">并发任务数</label>
+            <input id="test_concurrency" type="number" min="1" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="默认为1" />
           </div>
         </div>
         <!-- 第三行：RC + 码率点位 -->
@@ -324,6 +332,7 @@ function collectSide(prefix) {
     shortest_size: $(prefix + '_shortest_size').value ? parseInt($(prefix + '_shortest_size').value) : null,
     target_fps: $(prefix + '_target_fps').value ? parseFloat($(prefix + '_target_fps').value) : null,
     upscale_to_source: $(prefix + '_upscale_to_source').value === 'true',
+    concurrency: $(prefix + '_concurrency').value ? parseInt($(prefix + '_concurrency').value) : 1,
   };
 }
 
@@ -364,6 +373,7 @@ async function loadTemplate() {
       setValue('shortest_size', side.shortest_size || '');
       setValue('target_fps', side.target_fps || '');
       setValue('upscale_to_source', side.upscale_to_source !== false ? 'true' : 'false');
+      setValue('concurrency', side.concurrency || '');
     };
     fill('anchor', data.anchor);
     fill('test', data.test);

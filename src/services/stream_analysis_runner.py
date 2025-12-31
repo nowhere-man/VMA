@@ -201,7 +201,7 @@ async def build_bitstream_report(
             enc_fps = float(fps_val) if isinstance(fps_val, (int, float)) and fps_val > 0 else ref_fps
 
         # 2.2 使用管道方式计算指标
-        enc_analysis_dir = analysis_dir / f"encoded_{idx+1}"
+        enc_analysis_dir = analysis_dir / enc_input.stem
         enc_analysis_dir.mkdir(parents=True, exist_ok=True)
 
         metrics_result = await ffmpeg_service.calculate_metrics_pipeline(

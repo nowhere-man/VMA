@@ -41,7 +41,7 @@ class TemplateSideConfig(BaseModel):
     shortest_size: Optional[int] = Field(None, description="短边尺寸（可选，默认使用源视频分辨率）")
     target_fps: Optional[float] = Field(None, description="目标帧率（可选，默认使用源视频帧率）")
     upscale_to_source: bool = Field(default=True, description="Metrics策略：True=码流上采样到源分辨率，False=源视频下采样到码流分辨率")
-    concurrency: int = Field(default=1, description="并发数量")
+    concurrency: int = Field(default=1, description="并发编码数（默认1）")
 
     model_config = ConfigDict(extra="ignore")
 
