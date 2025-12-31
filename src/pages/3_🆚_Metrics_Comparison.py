@@ -35,6 +35,11 @@ from src.utils.streamlit_helpers import (
 from src.utils.streamlit_metrics_components import (
     inject_smooth_scroll_css,
     render_performance_section,
+    render_sidebar_contents,
+    render_rd_curves,
+    render_metrics_delta,
+    render_bd_rate_section,
+    render_bd_metrics_section,
 )
 
 
@@ -76,11 +81,11 @@ def _collect_points(entries: List[Dict[str, Any]], side_key: str) -> List[float]
     return points
 
 
-st.set_page_config(page_title="Metrics对比", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Metrics对比", page_icon="🆚", layout="wide")
 
 job_id = _get_job_id()
 if not job_id:
-    st.markdown("<h1 style='text-align:center;'>📊 Metrics对比报告</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;'>🆚 Metrics对比报告</h1>", unsafe_allow_html=True)
     jobs = _list_template_jobs()
     if not jobs:
         st.warning("暂未找到报告，请先创建任务。")
@@ -155,38 +160,7 @@ st.markdown(f"<h1 style='text-align:center;'>{template_name} - 对比报告</h1>
 st.markdown(f"<h4 style='text-align:right;'>{job_id}</h4>", unsafe_allow_html=True)
 # ========== 侧边栏目录 ==========
 with st.sidebar:
-    st.markdown("### 📑 Contents")
-    contents = [
-        "- [Information](#information)",
-        "- [Overall](#overall)",
-        "- [Metrics](#metrics)",
-        "  - [RD Curves](#rd-curve)",
-        "  - [Delta](#delta)",
-        "  - [Details](#details)",
-    ]
-    if has_bd:
-        contents += [
-            "- [BD-Rate](#bd-rate)",
-            "  - [BD-Rate PSNR](#bd-rate-psnr)",
-            "  - [BD-Rate SSIM](#bd-rate-ssim)",
-            "  - [BD-Rate VMAF](#bd-rate-vmaf)",
-            "  - [BD-Rate VMAF-NEG](#bd-rate-vmaf-neg)",
-            "- [BD-Metrics](#bd-metrics)",
-            "  - [BD PSNR](#bd-psnr)",
-            "  - [BD SSIM](#bd-ssim)",
-            "  - [BD VMAF](#bd-vmaf)",
-            "  - [BD VMAF-NEG](#bd-vmaf-neg)",
-    ]
-    contents += [
-        "- [Bitrates](#码率分析)",
-        "- [Performance](#performance)",
-        "  - [Delta](#perf-diff)",
-        "  - [CPU Usage](#cpu-chart)",
-        "  - [FPS](#fps-chart)",
-        "  - [Details](#perf-details)",
-        "- [Machine Info](#环境信息)",
-    ]
-    st.markdown("\n".join(contents), unsafe_allow_html=True)
+    render_sidebar_contents(has_bd=has_bd)
 
 inject_smooth_scroll_css()
 
@@ -291,132 +265,11 @@ if df_metrics.empty:
     st.warning("报告中没有可用的指标数据。")
     st.stop()
 
-# RD Curve
-st.subheader("RD Curves", anchor="rd-curve")
-video_list = df_metrics["Video"].unique().tolist()
-metric_options = ["PSNR", "SSIM", "VMAF", "VMAF-NEG"]
+# RD Curves
+render_rd_curves(df_metrics, anchor_label="Anchor", test_label="Test")
 
-col_select, col_chart = st.columns([1, 3])
-with col_select:
-    st.write("")  # 添加空行使选择器垂直居中
-    st.write("")
-    selected_video = st.selectbox("选择视频", video_list, key="rd_video")
-    selected_metric = st.selectbox("选择指标", metric_options, key="rd_metric")
-
-# 筛选数据并绘制 RD 曲线
-video_df = df_metrics[df_metrics["Video"] == selected_video]
-anchor_data = video_df[video_df["Side"] == "Anchor"].sort_values("Bitrate_kbps")
-test_data = video_df[video_df["Side"] == "Test"].sort_values("Bitrate_kbps")
-
-fig_rd = go.Figure()
-fig_rd.add_trace(
-    go.Scatter(
-        x=anchor_data["Bitrate_kbps"],
-        y=anchor_data[selected_metric],
-        mode="lines+markers",
-        name="Anchor",
-        marker=dict(size=10, color="#636efa"),
-        line=dict(width=2, shape="spline", smoothing=1.3, color="#636efa"),
-    )
-)
-fig_rd.add_trace(
-    go.Scatter(
-        x=test_data["Bitrate_kbps"],
-        y=test_data[selected_metric],
-        mode="lines+markers",
-        name="Test",
-        marker=dict(size=10, color="#f0553b"),
-        line=dict(width=2, shape="spline", smoothing=1.3, color="#f0553b"),
-    )
-)
-fig_rd.update_layout(
-    title=f"RD Curves - {selected_video}",
-    xaxis_title="Bitrate (kbps)",
-    yaxis_title=selected_metric,
-    hovermode="x unified",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-)
-with col_chart:
-    st.plotly_chart(fig_rd, use_container_width=True)
-
-# Diff 对比表（Anchor vs Test）
-anchor_df = df_metrics[df_metrics["Side"] == "Anchor"]
-test_df = df_metrics[df_metrics["Side"] == "Test"]
-merged = anchor_df.merge(
-    test_df,
-    on=["Video", "RC", "Point"],
-    suffixes=("_anchor", "_test"),
-)
-if not merged.empty:
-    merged["Bitrate Δ%"] = ((merged["Bitrate_kbps_test"] - merged["Bitrate_kbps_anchor"]) / merged["Bitrate_kbps_anchor"].replace(0, pd.NA)) * 100
-    merged["PSNR Δ"] = merged["PSNR_test"] - merged["PSNR_anchor"]
-    merged["SSIM Δ"] = merged["SSIM_test"] - merged["SSIM_anchor"]
-    merged["VMAF Δ"] = merged["VMAF_test"] - merged["VMAF_anchor"]
-    merged["VMAF-NEG Δ"] = merged["VMAF-NEG_test"] - merged["VMAF-NEG_anchor"]
-
-    diff_df = merged[
-        ["Video", "RC", "Point", "Bitrate Δ%", "PSNR Δ", "SSIM Δ", "VMAF Δ", "VMAF-NEG Δ"]
-    ].sort_values(by=["Video", "Point"]).reset_index(drop=True)
-    chart_df = diff_df.copy()
-
-    # 合并同一视频的名称（只在第一行显示）
-    prev_video = None
-    for idx in diff_df.index:
-        if diff_df.at[idx, "Video"] == prev_video:
-            diff_df.at[idx, "Video"] = ""
-        else:
-            prev_video = diff_df.at[idx, "Video"]
-
-    # 定义颜色样式函数
-    def _color_diff(val):
-        if pd.isna(val) or not isinstance(val, (int, float)):
-            return ""
-        if val > 0:
-            return "color: green"
-        elif val < 0:
-            return "color: red"
-        return ""
-
-    diff_cols = ["Bitrate Δ%", "PSNR Δ", "SSIM Δ", "VMAF Δ", "VMAF-NEG Δ"]
-
-    # 格式化精度
-    format_dict = {
-        "Point": "{:.2f}",
-        "Bitrate Δ%": "{:.2f}",
-        "PSNR Δ": "{:.4f}",
-        "SSIM Δ": "{:.4f}",
-        "VMAF Δ": "{:.2f}",
-        "VMAF-NEG Δ": "{:.2f}",
-    }
-    styled_df = diff_df.style.applymap(_color_diff, subset=diff_cols).format(format_dict, na_rep="-")
-
-    st.subheader("Delta", anchor="delta")
-
-    metric_config = {
-        "Bitrate Δ%": {"fmt": "{:+.2f}%", "pos": "#ef553b", "neg": "#00cc96"},
-        "PSNR Δ": {"fmt": "{:+.4f}", "pos": "#00cc96", "neg": "#ef553b"},
-        "SSIM Δ": {"fmt": "{:+.4f}", "pos": "#00cc96", "neg": "#ef553b"},
-        "VMAF Δ": {"fmt": "{:+.2f}", "pos": "#00cc96", "neg": "#ef553b"},
-        "VMAF-NEG Δ": {"fmt": "{:+.2f}", "pos": "#00cc96", "neg": "#ef553b"},
-    }
-    render_delta_bar_chart_by_point(
-        chart_df,
-        point_col="Point",
-        metric_options=diff_cols,
-        metric_config=metric_config,
-        point_select_label="选择码率点位",
-        metric_select_label="选择指标",
-        point_select_key="metrics_delta_point",
-        metric_select_key="metrics_delta_metric",
-    )
-
-    render_delta_table_expander(
-        "查看详细Delta数据",
-        styled_df,
-        column_config={
-            "Video": st.column_config.TextColumn("Video", width="medium"),
-        },
-    )
+# Delta
+render_metrics_delta(df_metrics, anchor_label="Anchor", test_label="Test", point_key="metrics_delta_point", metric_key="metrics_delta_metric")
 
 # 详细表格（默认折叠）
 st.subheader("Details", anchor="details")
@@ -435,148 +288,8 @@ with st.expander("查看详细Metrics数据", expanded=False):
 
 
 if has_bd:
-    # ========== BD-Rate ==========
-    st.header("BD-Rate", anchor="bd-rate")
-    if bd_list:
-        df_bd = pd.DataFrame(bd_list)
-
-        # BD-Rate 颜色样式：小于0绿色，大于0红色
-        def _color_bd_rate(val):
-            if pd.isna(val) or not isinstance(val, (int, float)):
-                return ""
-            if val < 0:
-                return "color: green"
-            elif val > 0:
-                return "color: red"
-            return ""
-
-        bd_rate_cols = ["bd_rate_psnr", "bd_rate_ssim", "bd_rate_vmaf", "bd_rate_vmaf_neg"]
-        bd_rate_display = df_bd[["source"] + bd_rate_cols].rename(
-            columns={
-                "source": "Video",
-                "bd_rate_psnr": "BD-Rate PSNR (%)",
-                "bd_rate_ssim": "BD-Rate SSIM (%)",
-                "bd_rate_vmaf": "BD-Rate VMAF (%)",
-                "bd_rate_vmaf_neg": "BD-Rate VMAF-NEG (%)",
-            }
-        )
-        styled_bd_rate = bd_rate_display.style.applymap(
-            _color_bd_rate,
-            subset=["BD-Rate PSNR (%)", "BD-Rate SSIM (%)", "BD-Rate VMAF (%)", "BD-Rate VMAF-NEG (%)"],
-        ).format({
-            "BD-Rate PSNR (%)": "{:.2f}",
-            "BD-Rate SSIM (%)": "{:.2f}",
-            "BD-Rate VMAF (%)": "{:.2f}",
-            "BD-Rate VMAF-NEG (%)": "{:.2f}",
-        }, na_rep="-")
-        st.dataframe(styled_bd_rate, use_container_width=True, hide_index=True)
-
-        # BD-Rate 柱状图（拆分为独立子标题）
-        def _create_bd_bar_chart(df, col, title):
-            colors = ["#00cc96" if v < 0 else "#ef553b" if v > 0 else "gray" for v in df[col].fillna(0)]
-            fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    x=df["source"],
-                    y=df[col],
-                    marker_color=colors,
-                    text=[f"{v:.2f}%" if pd.notna(v) else "" for v in df[col]],
-                    textposition="outside",
-                )
-            )
-            fig.update_layout(
-                title=title,
-                xaxis_title="Video",
-                yaxis_title="BD-Rate (%)",
-                showlegend=False,
-            )
-            return fig
-
-        st.subheader("BD-Rate PSNR", anchor="bd-rate-psnr")
-        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_psnr", "BD-Rate PSNR, the less, the better"), use_container_width=True)
-
-        st.subheader("BD-Rate SSIM", anchor="bd-rate-ssim")
-        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_ssim", "BD-Rate SSIM, the less, the better"), use_container_width=True)
-
-        st.subheader("BD-Rate VMAF", anchor="bd-rate-vmaf")
-        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_vmaf", "BD-Rate VMAF, the less, the better"), use_container_width=True)
-
-        st.subheader("BD-Rate VMAF-NEG", anchor="bd-rate-vmaf-neg")
-        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_vmaf_neg", "BD-Rate VMAF-NEG, the less, the better"), use_container_width=True)
-    else:
-        st.info("暂无 BD-Rate 数据。")
-
-
-    # ========== BD-Metrics ==========
-    st.header("BD-Metrics", anchor="bd-metrics")
-    if bd_list:
-        df_bdm = pd.DataFrame(bd_list)
-
-        # BD-Metrics 颜色样式：大于0绿色，小于0红色
-        def _color_bd_metrics(val):
-            if pd.isna(val) or not isinstance(val, (int, float)):
-                return ""
-            if val > 0:
-                return "color: green"
-            elif val < 0:
-                return "color: red"
-            return ""
-
-        bd_metrics_cols = ["bd_psnr", "bd_ssim", "bd_vmaf", "bd_vmaf_neg"]
-        bd_metrics_display = df_bdm[["source"] + bd_metrics_cols].rename(
-            columns={
-                "source": "Video",
-                "bd_psnr": "BD PSNR",
-                "bd_ssim": "BD SSIM",
-                "bd_vmaf": "BD VMAF",
-                "bd_vmaf_neg": "BD VMAF-NEG",
-            }
-        )
-        styled_bd_metrics = bd_metrics_display.style.applymap(
-            _color_bd_metrics,
-            subset=["BD PSNR", "BD SSIM", "BD VMAF", "BD VMAF-NEG"],
-        ).format({
-            "BD PSNR": "{:.4f}",
-            "BD SSIM": "{:.4f}",
-            "BD VMAF": "{:.2f}",
-            "BD VMAF-NEG": "{:.2f}",
-        }, na_rep="-")
-        st.dataframe(styled_bd_metrics, use_container_width=True, hide_index=True)
-
-        # BD-Metrics 柱状图（拆分为独立子标题）
-        def _create_bd_metrics_bar_chart(df, col, title):
-            colors = ["#00cc96" if v > 0 else "#ef553b" if v < 0 else "gray" for v in df[col].fillna(0)]
-            fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    x=df["source"],
-                    y=df[col],
-                    marker_color=colors,
-                    text=[f"{v:.4f}" if pd.notna(v) else "" for v in df[col]],
-                    textposition="outside",
-                )
-            )
-            fig.update_layout(
-                title=title,
-                xaxis_title="Video",
-                yaxis_title="Δ Metric",
-                showlegend=False,
-            )
-            return fig
-
-        st.subheader("BD PSNR", anchor="bd-psnr")
-        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_psnr", "BD PSNR, the more, the better"), use_container_width=True)
-
-        st.subheader("BD SSIM", anchor="bd-ssim")
-        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_ssim", "BD SSIM, the more, the better"), use_container_width=True)
-
-        st.subheader("BD VMAF", anchor="bd-vmaf")
-        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_vmaf", "BD VMAF, the more, the better"), use_container_width=True)
-
-        st.subheader("BD VMAF-NEG", anchor="bd-vmaf-neg")
-        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_vmaf_neg", "BD VMAF-NEG"), use_container_width=True)
-    else:
-        st.info("暂无 BD-Metrics 数据。")
+    render_bd_rate_section(bd_list)
+    render_bd_metrics_section(bd_list)
 
 
 # ========== Bitrate 分析 ==========

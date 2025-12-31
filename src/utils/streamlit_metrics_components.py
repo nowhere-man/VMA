@@ -189,3 +189,320 @@ def render_performance_section(
 
         styled_perf_detail = df_detail.sort_values(by=["Video", "Point", "Side"]).style.format(fmt, na_rep="-")
         st.dataframe(styled_perf_detail, use_container_width=True, hide_index=True)
+
+
+def render_sidebar_contents(has_bd: bool = False) -> None:
+    """渲染侧边栏目录"""
+    st.markdown("### 📑 Contents")
+    contents = [
+        "- [Information](#information)",
+        "- [Overall](#overall)",
+        "- [Metrics](#metrics)",
+        "  - [RD Curves](#rd-curve)",
+        "  - [Delta](#delta)",
+        "  - [Details](#details)",
+    ]
+    if has_bd:
+        contents += [
+            "- [BD-Rate](#bd-rate)",
+            "  - [BD-Rate PSNR](#bd-rate-psnr)",
+            "  - [BD-Rate SSIM](#bd-rate-ssim)",
+            "  - [BD-Rate VMAF](#bd-rate-vmaf)",
+            "  - [BD-Rate VMAF-NEG](#bd-rate-vmaf-neg)",
+            "- [BD-Metrics](#bd-metrics)",
+            "  - [BD PSNR](#bd-psnr)",
+            "  - [BD SSIM](#bd-ssim)",
+            "  - [BD VMAF](#bd-vmaf)",
+            "  - [BD VMAF-NEG](#bd-vmaf-neg)",
+        ]
+    contents += [
+        "- [Performance](#performance)",
+        "  - [Delta](#perf-diff)",
+        "  - [CPU Usage](#cpu-chart)",
+        "  - [FPS](#fps-chart)",
+        "  - [Details](#perf-details)",
+        "- [Machine Info](#环境信息)",
+    ]
+    st.markdown("\n".join(contents), unsafe_allow_html=True)
+
+
+def render_rd_curves(df: "pd.DataFrame", anchor_label: str = "Anchor", test_label: str = "Test") -> None:
+    """渲染 RD 曲线"""
+    import plotly.graph_objects as go
+
+    st.subheader("RD Curves", anchor="rd-curve")
+    video_list = df["Video"].unique().tolist()
+    metric_options = ["PSNR", "SSIM", "VMAF", "VMAF-NEG"]
+
+    col_select, col_chart = st.columns([1, 3])
+    with col_select:
+        st.write("")
+        st.write("")
+        selected_video = st.selectbox("选择视频", video_list, key="rd_video")
+        selected_metric = st.selectbox("选择指标", metric_options, key="rd_metric")
+
+    video_df = df[df["Video"] == selected_video]
+    anchor_data = video_df[video_df["Side"] == anchor_label].sort_values("Bitrate_kbps")
+    test_data = video_df[video_df["Side"] == test_label].sort_values("Bitrate_kbps")
+
+    fig_rd = go.Figure()
+    fig_rd.add_trace(
+        go.Scatter(
+            x=anchor_data["Bitrate_kbps"],
+            y=anchor_data[selected_metric],
+            mode="lines+markers",
+            name=anchor_label,
+            marker=dict(size=10, color="#636efa"),
+            line=dict(width=2, shape="spline", smoothing=1.3, color="#636efa"),
+        )
+    )
+    fig_rd.add_trace(
+        go.Scatter(
+            x=test_data["Bitrate_kbps"],
+            y=test_data[selected_metric],
+            mode="lines+markers",
+            name=test_label,
+            marker=dict(size=10, color="#f0553b"),
+            line=dict(width=2, shape="spline", smoothing=1.3, color="#f0553b"),
+        )
+    )
+    fig_rd.update_layout(
+        title=f"RD Curves - {selected_video}",
+        xaxis_title="Bitrate (kbps)",
+        yaxis_title=selected_metric,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+    with col_chart:
+        st.plotly_chart(fig_rd, use_container_width=True)
+
+
+def render_metrics_delta(
+    df: "pd.DataFrame",
+    anchor_label: str = "Anchor",
+    test_label: str = "Test",
+    point_key: str = "metrics_delta_point",
+    metric_key: str = "metrics_delta_metric",
+) -> None:
+    """渲染 Metrics Delta 对比"""
+    import pandas as pd
+    from src.utils.streamlit_helpers import render_delta_bar_chart_by_point, render_delta_table_expander
+
+    anchor_df = df[df["Side"] == anchor_label]
+    test_df = df[df["Side"] == test_label]
+    merged = anchor_df.merge(test_df, on=["Video", "RC", "Point"], suffixes=("_anchor", "_test"))
+
+    if not merged.empty:
+        merged["Bitrate Δ%"] = ((merged["Bitrate_kbps_test"] - merged["Bitrate_kbps_anchor"]) / merged["Bitrate_kbps_anchor"].replace(0, pd.NA)) * 100
+        merged["PSNR Δ"] = merged["PSNR_test"] - merged["PSNR_anchor"]
+        merged["SSIM Δ"] = merged["SSIM_test"] - merged["SSIM_anchor"]
+        merged["VMAF Δ"] = merged["VMAF_test"] - merged["VMAF_anchor"]
+        merged["VMAF-NEG Δ"] = merged["VMAF-NEG_test"] - merged["VMAF-NEG_anchor"]
+
+        diff_df = merged[
+            ["Video", "RC", "Point", "Bitrate Δ%", "PSNR Δ", "SSIM Δ", "VMAF Δ", "VMAF-NEG Δ"]
+        ].sort_values(by=["Video", "Point"]).reset_index(drop=True)
+        chart_df = diff_df.copy()
+
+        prev_video = None
+        for idx in diff_df.index:
+            if diff_df.at[idx, "Video"] == prev_video:
+                diff_df.at[idx, "Video"] = ""
+            else:
+                prev_video = diff_df.at[idx, "Video"]
+
+        def _color_diff(val):
+            if pd.isna(val) or not isinstance(val, (int, float)):
+                return ""
+            if val > 0:
+                return "color: green"
+            elif val < 0:
+                return "color: red"
+            return ""
+
+        diff_cols = ["Bitrate Δ%", "PSNR Δ", "SSIM Δ", "VMAF Δ", "VMAF-NEG Δ"]
+        format_dict = {
+            "Point": "{:.2f}",
+            "Bitrate Δ%": "{:.2f}",
+            "PSNR Δ": "{:.4f}",
+            "SSIM Δ": "{:.4f}",
+            "VMAF Δ": "{:.2f}",
+            "VMAF-NEG Δ": "{:.2f}",
+        }
+        styled_df = diff_df.style.applymap(_color_diff, subset=diff_cols).format(format_dict, na_rep="-")
+
+        st.subheader("Delta", anchor="delta")
+
+        metric_config = {
+            "Bitrate Δ%": {"fmt": "{:+.2f}%", "pos": "#ef553b", "neg": "#00cc96"},
+            "PSNR Δ": {"fmt": "{:+.4f}", "pos": "#00cc96", "neg": "#ef553b"},
+            "SSIM Δ": {"fmt": "{:+.4f}", "pos": "#00cc96", "neg": "#ef553b"},
+            "VMAF Δ": {"fmt": "{:+.2f}", "pos": "#00cc96", "neg": "#ef553b"},
+            "VMAF-NEG Δ": {"fmt": "{:+.2f}", "pos": "#00cc96", "neg": "#ef553b"},
+        }
+        render_delta_bar_chart_by_point(
+            chart_df,
+            point_col="Point",
+            metric_options=diff_cols,
+            metric_config=metric_config,
+            point_select_label="选择码率点位",
+            metric_select_label="选择指标",
+            point_select_key=point_key,
+            metric_select_key=metric_key,
+        )
+
+        render_delta_table_expander(
+            "查看详细Delta数据",
+            styled_df,
+            column_config={
+                "Video": st.column_config.TextColumn("Video", width="medium"),
+            },
+        )
+
+
+def render_bd_rate_section(bd_list: list) -> None:
+    """渲染 BD-Rate 分析区块"""
+    import pandas as pd
+    import plotly.graph_objects as go
+
+    st.header("BD-Rate", anchor="bd-rate")
+    if bd_list:
+        df_bd = pd.DataFrame(bd_list)
+
+        def _color_bd_rate(val):
+            if pd.isna(val) or not isinstance(val, (int, float)):
+                return ""
+            if val < 0:
+                return "color: green"
+            elif val > 0:
+                return "color: red"
+            return ""
+
+        bd_rate_cols = ["bd_rate_psnr", "bd_rate_ssim", "bd_rate_vmaf", "bd_rate_vmaf_neg"]
+        bd_rate_display = df_bd[["source"] + bd_rate_cols].rename(
+            columns={
+                "source": "Video",
+                "bd_rate_psnr": "BD-Rate PSNR (%)",
+                "bd_rate_ssim": "BD-Rate SSIM (%)",
+                "bd_rate_vmaf": "BD-Rate VMAF (%)",
+                "bd_rate_vmaf_neg": "BD-Rate VMAF-NEG (%)",
+            }
+        )
+        styled_bd_rate = bd_rate_display.style.applymap(
+            _color_bd_rate,
+            subset=["BD-Rate PSNR (%)", "BD-Rate SSIM (%)", "BD-Rate VMAF (%)", "BD-Rate VMAF-NEG (%)"],
+        ).format({
+            "BD-Rate PSNR (%)": "{:.2f}",
+            "BD-Rate SSIM (%)": "{:.2f}",
+            "BD-Rate VMAF (%)": "{:.2f}",
+            "BD-Rate VMAF-NEG (%)": "{:.2f}",
+        }, na_rep="-")
+        st.dataframe(styled_bd_rate, use_container_width=True, hide_index=True)
+
+        def _create_bd_bar_chart(df, col, title):
+            colors = ["#00cc96" if v < 0 else "#ef553b" if v > 0 else "gray" for v in df[col].fillna(0)]
+            fig = go.Figure()
+            fig.add_trace(
+                go.Bar(
+                    x=df["source"],
+                    y=df[col],
+                    marker_color=colors,
+                    text=[f"{v:.2f}%" if pd.notna(v) else "" for v in df[col]],
+                    textposition="outside",
+                )
+            )
+            fig.update_layout(
+                title=title,
+                xaxis_title="Video",
+                yaxis_title="BD-Rate (%)",
+                showlegend=False,
+            )
+            return fig
+
+        st.subheader("BD-Rate PSNR", anchor="bd-rate-psnr")
+        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_psnr", "BD-Rate PSNR, the less, the better"), use_container_width=True)
+
+        st.subheader("BD-Rate SSIM", anchor="bd-rate-ssim")
+        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_ssim", "BD-Rate SSIM, the less, the better"), use_container_width=True)
+
+        st.subheader("BD-Rate VMAF", anchor="bd-rate-vmaf")
+        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_vmaf", "BD-Rate VMAF, the less, the better"), use_container_width=True)
+
+        st.subheader("BD-Rate VMAF-NEG", anchor="bd-rate-vmaf-neg")
+        st.plotly_chart(_create_bd_bar_chart(df_bd, "bd_rate_vmaf_neg", "BD-Rate VMAF-NEG, the less, the better"), use_container_width=True)
+    else:
+        st.info("暂无 BD-Rate 数据。")
+
+
+def render_bd_metrics_section(bd_list: list) -> None:
+    """渲染 BD-Metrics 分析区块"""
+    import pandas as pd
+    import plotly.graph_objects as go
+
+    st.header("BD-Metrics", anchor="bd-metrics")
+    if bd_list:
+        df_bdm = pd.DataFrame(bd_list)
+
+        def _color_bd_metrics(val):
+            if pd.isna(val) or not isinstance(val, (int, float)):
+                return ""
+            if val > 0:
+                return "color: green"
+            elif val < 0:
+                return "color: red"
+            return ""
+
+        bd_metrics_cols = ["bd_psnr", "bd_ssim", "bd_vmaf", "bd_vmaf_neg"]
+        bd_metrics_display = df_bdm[["source"] + bd_metrics_cols].rename(
+            columns={
+                "source": "Video",
+                "bd_psnr": "BD PSNR",
+                "bd_ssim": "BD SSIM",
+                "bd_vmaf": "BD VMAF",
+                "bd_vmaf_neg": "BD VMAF-NEG",
+            }
+        )
+        styled_bd_metrics = bd_metrics_display.style.applymap(
+            _color_bd_metrics,
+            subset=["BD PSNR", "BD SSIM", "BD VMAF", "BD VMAF-NEG"],
+        ).format({
+            "BD PSNR": "{:.4f}",
+            "BD SSIM": "{:.4f}",
+            "BD VMAF": "{:.2f}",
+            "BD VMAF-NEG": "{:.2f}",
+        }, na_rep="-")
+        st.dataframe(styled_bd_metrics, use_container_width=True, hide_index=True)
+
+        def _create_bd_metrics_bar_chart(df, col, title):
+            colors = ["#00cc96" if v > 0 else "#ef553b" if v < 0 else "gray" for v in df[col].fillna(0)]
+            fig = go.Figure()
+            fig.add_trace(
+                go.Bar(
+                    x=df["source"],
+                    y=df[col],
+                    marker_color=colors,
+                    text=[f"{v:.4f}" if pd.notna(v) else "" for v in df[col]],
+                    textposition="outside",
+                )
+            )
+            fig.update_layout(
+                title=title,
+                xaxis_title="Video",
+                yaxis_title="Δ Metric",
+                showlegend=False,
+            )
+            return fig
+
+        st.subheader("BD PSNR", anchor="bd-psnr")
+        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_psnr", "BD PSNR, the more, the better"), use_container_width=True)
+
+        st.subheader("BD SSIM", anchor="bd-ssim")
+        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_ssim", "BD SSIM, the more, the better"), use_container_width=True)
+
+        st.subheader("BD VMAF", anchor="bd-vmaf")
+        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_vmaf", "BD VMAF, the more, the better"), use_container_width=True)
+
+        st.subheader("BD VMAF-NEG", anchor="bd-vmaf-neg")
+        st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_vmaf_neg", "BD VMAF-NEG"), use_container_width=True)
+    else:
+        st.info("暂无 BD-Metrics 数据。")

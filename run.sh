@@ -41,7 +41,7 @@ mkdir -p "${REPORTS_ROOT_DIR}"
 
 export PYTHONPATH=.
 
-.venv/bin/streamlit run "src/1_🏠_Homepage.py" \
+.venv/bin/streamlit run "src/1_🏠_Home.py" \
     --server.port "${STREAMLIT_PORT}" \
     --server.address "${HOST}" \
     --server.headless true \

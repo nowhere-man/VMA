@@ -74,7 +74,7 @@ def list_jobs(
             try:
                 if meta_path.exists():
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    status_ok = meta.get("status") == "COMPLETED"
+                    status_ok = meta.get("status") == "completed"
             except Exception:
                 status_ok = True
             item["status_ok"] = status_ok

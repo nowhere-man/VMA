@@ -15,8 +15,8 @@ from src.utils.streamlit_helpers import list_jobs
 
 # 页面配置
 st.set_page_config(
-    page_title="VMR 首页",
-    page_icon="📊",
+    page_title="首页 - VMR",
+    page_icon="📑",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -97,7 +97,7 @@ st.markdown(
 )
 
 # 主标题居中
-st.markdown("<h1 class='main-header' style='text-align:center;'>📊 视频Metrics分析报告</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header' style='text-align:center;'>📑 Video Metrics Reporter</h1>", unsafe_allow_html=True)
 
 # 最近的码流分析报告列表
 st.subheader("最近的码流分析报告")

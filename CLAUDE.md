@@ -7,7 +7,7 @@ VMA/
 ├── src/
 │   ├── main.py                 # FastAPI VMA 应用入口
 │   ├── config.py               # 配置管理（从 config.yml 加载）
-│   ├── 1_🏠_Homepage.py        # Streamlit VMR 报告首页
+│   ├── 1_🏠_Home.py        # Streamlit VMR 报告首页
 │   ├── api/                    # FastAPI 路由
 │   │   ├── jobs.py             # 任务 API（创建/查询/删除任务）
 │   │   ├── templates.py        # Metrics Comparison 模板 API
@@ -33,7 +33,7 @@ VMA/
 │   │   └── streamlit_*.py      # Streamlit 辅助工具
 │   ├── pages/                  # Streamlit 报告页面
 │   │   ├── 2_📊_Metrics_Analysis.py
-│   │   ├── 3_⚖️_Metrics_Comparison.py
+│   │   ├── 3_🆚_Metrics_Comparison.py
 │   │   └── 4_📈_Stream_Analysis.py
 │   └── templates/              # Jinja2 HTML 模板（FastAPI Web UI）
 ├── config.yml                  # 配置文件
@@ -190,7 +190,7 @@ ffmpeg -f rawvideo -s 1920x1080 -r 30 -i pipe:3 -f rawvideo -s 1920x1080 -r 30 -
 
 ## Streamlit VMR 报告系统
 
-### 首页 (1_🏠_Homepage.py)
+### 首页 (1_🏠_Home.py)
 
 - 显示最近的码流分析报告列表
 - 显示最近的 Metrics 对比报告列表
@@ -198,9 +198,39 @@ ffmpeg -f rawvideo -s 1920x1080 -r 30 -i pipe:3 -f rawvideo -s 1920x1080 -r 30 -
 
 ### Metrics Analysis 页面 (2_📊_Metrics_Analysis.py)
 
-- 显示单侧 Metrics 分析结果
-- RD 曲线（Rate-Distortion）
-- 逐帧指标图表
+**重要要求**：Metrics Analysis 页面选择两个 Metrics Analysis 任务（Anchor 和 Test）后生成的对比报告，必须与 Metrics Comparison 页面的报告结构完全一致。
+
+**功能**：
+- 选择两个已完成的 Metrics Analysis 任务进行动态对比
+- 实时生成 Anchor vs Test 对比报告（不落盘）
+
+**报告结构**（与 Metrics Comparison 页面完全一致）：
+1. **Information** - 编码器配置信息对比
+2. **Overall** - 整体指标汇总（包含 BD-Rate 汇总）
+3. **Metrics** - 质量指标详细对比
+   - **RD Curves** - Rate-Distortion 曲线（交互式 Plotly 图表）
+   - **Delta** - 指标差异对比（柱状图 + 表格）
+   - **Details** - 详细指标数据表格
+4. **BD-Rate** - BD-Rate 分析（需要至少 4 个码率点）
+   - 汇总表格（带颜色标注）
+   - **BD-Rate PSNR** - 独立柱状图
+   - **BD-Rate SSIM** - 独立柱状图
+   - **BD-Rate VMAF** - 独立柱状图
+   - **BD-Rate VMAF-NEG** - 独立柱状图
+5. **BD-Metrics** - BD-Metrics 分析
+   - 汇总表格（带颜色标注）
+   - **BD PSNR** - 独立柱状图
+   - **BD SSIM** - 独立柱状图
+   - **BD VMAF** - 独立柱状图
+   - **BD VMAF-NEG** - 独立柱状图
+6. **Performance** - 编码性能对比
+   - **Delta** - 性能差异对比（FPS、CPU）
+   - **CPU Usage** - CPU 占用率曲线
+   - **FPS** - 编码帧率对比
+   - **Details** - 详细性能数据
+7. **Machine Info** - 执行环境信息（Anchor 和 Test）
+
+**侧边栏目录**：完整的章节导航，包含所有子章节锚点链接
 
 ### Metrics Comparison 页面 (3_⚖️_Metrics_Comparison.py)
 
@@ -332,7 +362,7 @@ log_level: "INFO"
 uvicorn src.main:app --host 0.0.0.0 --port 8078
 
 # Streamlit
-streamlit run src/1_🏠_Homepage.py --server.port 8079
+streamlit run src/1_🏠_Home.py --server.port 8079
 ```
 
 ## 关键文件说明

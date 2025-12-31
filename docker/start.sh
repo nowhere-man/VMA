@@ -52,7 +52,7 @@ mkdir -p "${REPORTS_ROOT_DIR}"
 
 # 启动 Streamlit (后台运行，仅监听本地)
 echo "[1/2] Starting Streamlit..."
-streamlit run "/app/src/1_🏠_Homepage.py" \
+streamlit run "/app/src/1_🏠_Home.py" \
     --server.port "${STREAMLIT_PORT}" \
     --server.address "${HOST}" \
     --server.headless true \

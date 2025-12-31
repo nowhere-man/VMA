@@ -27,11 +27,35 @@ from src.utils.streamlit_helpers import (
     format_env_info,
     render_overall_section,
 )
+from src.utils.streamlit_metrics_components import (
+    inject_smooth_scroll_css,
+    render_performance_section,
+    render_sidebar_contents,
+    render_rd_curves,
+    render_metrics_delta,
+    render_bd_rate_section,
+    render_bd_metrics_section,
+)
 from src.services.template_storage import template_storage
 
 
 def _list_metrics_jobs(limit: int = 100) -> List[Dict[str, Any]]:
     return list_jobs("metrics_analysis/analyse_data.json", limit=limit, check_status=True)
+
+
+def _format_job_label(job: Dict[str, Any]) -> str:
+    """格式化任务显示标签: <template-name>_<yyyy-MM-dd_hh:mm:ss>_<task-id>"""
+    from datetime import datetime
+
+    job_id = job.get("job_id", "unknown")
+    template_name = job.get("report_data", {}).get("template_name", "unknown")
+
+    # 从 mtime 获取时间戳
+    mtime = job.get("mtime", 0)
+    dt = datetime.fromtimestamp(mtime)
+    timestamp = dt.strftime("%Y-%m-%d_%H:%M:%S")
+
+    return f"{template_name}_{timestamp}_{job_id}"
 
 
 def _load_analyse(job_id: str) -> Dict[str, Any]:
@@ -181,29 +205,71 @@ def _build_bd_rows(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[Dict[st
 
 st.set_page_config(page_title="Metrics分析", page_icon="📊", layout="wide")
 
-st.markdown("<h1 style='text-align:center;'>📊 Metrics分析</h1>", unsafe_allow_html=True)
-
+# 过滤有效任务
 jobs = _list_metrics_jobs()
-if len(jobs) < 2:
-    st.info("需要至少两个已完成的Metrics分析任务")
+valid_jobs = [j for j in jobs if j["status_ok"]]
+
+# 创建显示标签到 job_id 的映射
+job_label_map = {_format_job_label(j): j["job_id"] for j in valid_jobs}
+job_options = list(job_label_map.keys())
+
+# 检查是否通过 query params 传入了任务 ID（用于显示报告）
+from src.utils.streamlit_helpers import get_query_param
+anchor_param = get_query_param("anchor_job")
+test_param = get_query_param("test_job")
+
+if anchor_param and test_param:
+    # 显示报告模式
+    # 隐藏侧边栏的页面导航
+    st.markdown("""
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+    anchor_job_id = anchor_param
+    test_job_id = test_param
+
+    # 加载数据
+    anchor_data = _load_analyse(anchor_job_id)
+    test_data = _load_analyse(test_job_id)
+
+    # 获取模板名称用于标题
+    anchor_template_name = anchor_data.get("template_name", "Unknown")
+    test_template_name = test_data.get("template_name", "Unknown")
+
+    # 显示报告标题
+    st.markdown(f"<h1 style='text-align:center;'>{anchor_template_name} VS {test_template_name} 对比报告</h1>", unsafe_allow_html=True)
+else:
+    # 显示选择模式
+    st.markdown("<h1 style='text-align:center;'>📊 Metrics分析</h1>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        anchor_label = st.selectbox("Anchor", options=job_options, index=None, placeholder="请选择一个任务", key="metrics_job_a")
+    with col2:
+        test_options = [o for o in job_options if o != anchor_label] if anchor_label else job_options
+        test_label = st.selectbox("Test", options=test_options, index=None, placeholder="请选择一个任务", key="metrics_job_b")
+
+    # 生成报告按钮
+    col_btn1, col_btn2 = st.columns([1, 1])
+    with col_btn1:
+        button_disabled = not (anchor_label and test_label)
+        if anchor_label and test_label:
+            anchor_job_id = job_label_map[anchor_label]
+            test_job_id = job_label_map[test_label]
+            report_url = f"/Metrics_Analysis?anchor_job={anchor_job_id}&test_job={test_job_id}"
+            st.link_button("生成报告", report_url, type="primary", disabled=button_disabled, use_container_width=True)
+        else:
+            st.button("生成报告", type="primary", disabled=True, use_container_width=True)
+
     st.stop()
 
-options = [j["job_id"] for j in jobs if j["status_ok"]]
-if len(options) < 2:
-    st.info("任务数量不足，无法进行分析。")
-    st.stop()
-
-col1, col2 = st.columns(2)
-with col1:
-    anchor_job_id = st.selectbox("Anchor 任务", options=options, key="metrics_job_a")
-with col2:
-    test_job_id = st.selectbox("Test 任务", options=[o for o in options if o != anchor_job_id], key="metrics_job_b")
-
-if not anchor_job_id or not test_job_id:
-    st.stop()
-
-anchor_data = _load_analyse(anchor_job_id)
-test_data = _load_analyse(test_job_id)
+# 以下是报告生成逻辑（只有通过 query params 访问时才会执行）
+anchor_job_id = anchor_param
+test_job_id = test_param
 
 anchor_rows, anchor_perf_rows = _build_rows(anchor_data, "Anchor")
 test_rows, test_perf_rows = _build_rows(test_data, "Test")
@@ -220,27 +286,7 @@ has_bd = point_count >= 4
 
 # ========== 侧边栏目录 ==========
 with st.sidebar:
-    st.markdown("### 📑 Contents")
-    contents = [
-        "- [Information](#information)",
-        "- [Overall](#overall)",
-        "- [Metrics](#metrics)",
-        "  - [Anchor vs Test 对比](#anchor-vs-test-对比)",
-    ]
-    if has_bd:
-        contents += [
-            "- [BD-Rate](#bd-rate)",
-            "- [BD-Metrics](#bd-metrics)",
-    ]
-    contents += [
-        "- [Performance](#performance)",
-        "  - [Delta](#perf-diff)",
-        "  - [CPU Usage](#cpu-chart)",
-        "  - [FPS](#fps-chart)",
-        "  - [Details](#perf-details)",
-        "- [Machine Info](#环境信息)",
-    ]
-    st.markdown("\n".join(contents), unsafe_allow_html=True)
+    render_sidebar_contents(has_bd=has_bd)
 
 inject_smooth_scroll_css()
 
@@ -304,91 +350,31 @@ render_overall_section(
 
 st.header("Metrics", anchor="metrics")
 
-# 格式化精度
-metrics_format = {
-    "Point": "{:.2f}",
-    "Bitrate_kbps": "{:.2f}",
-    "PSNR": "{:.4f}",
-    "SSIM": "{:.4f}",
-    "VMAF": "{:.2f}",
-    "VMAF-NEG": "{:.2f}",
-}
+# RD Curves
+render_rd_curves(df, anchor_label="Anchor", test_label="Test")
 
-styled_metrics = df.style.format(metrics_format, na_rep="-")
-st.dataframe(styled_metrics, use_container_width=True, hide_index=True)
+# Delta
+render_metrics_delta(df, anchor_label="Anchor", test_label="Test", point_key="metrics_delta_point", metric_key="metrics_delta_metric")
 
-anchor_df = df[df["Side"] == "Anchor"]
-test_df = df[df["Side"] == "Test"]
-merged = anchor_df.merge(test_df, on=["Video", "RC", "Point"], suffixes=("_anchor", "_test"))
-if not merged.empty:
-    merged["Bitrate Δ%"] = ((merged["Bitrate_kbps_test"] - merged["Bitrate_kbps_anchor"]) / merged["Bitrate_kbps_anchor"].replace(0, pd.NA)) * 100
-    merged["PSNR Δ"] = merged["PSNR_test"] - merged["PSNR_anchor"]
-    merged["SSIM Δ"] = merged["SSIM_test"] - merged["SSIM_anchor"]
-    merged["VMAF Δ"] = merged["VMAF_test"] - merged["VMAF_anchor"]
-    merged["VMAF-NEG Δ"] = merged["VMAF-NEG_test"] - merged["VMAF-NEG_anchor"]
-    st.subheader("Anchor vs Test 对比", anchor="anchor-vs-test-对比")
-
-    # 格式化精度
-    comparison_format = {
+# Details
+st.subheader("Details", anchor="details")
+with st.expander("查看详细Metrics数据", expanded=False):
+    details_format = {
         "Point": "{:.2f}",
-        "Bitrate_kbps_anchor": "{:.2f}",
-        "Bitrate_kbps_test": "{:.2f}",
-        "Bitrate Δ%": "{:.2f}",
-        "PSNR_anchor": "{:.4f}",
-        "PSNR_test": "{:.4f}",
-        "PSNR Δ": "{:.4f}",
-        "SSIM_anchor": "{:.4f}",
-        "SSIM_test": "{:.4f}",
-        "SSIM Δ": "{:.4f}",
-        "VMAF_anchor": "{:.2f}",
-        "VMAF_test": "{:.2f}",
-        "VMAF Δ": "{:.2f}",
-        "VMAF-NEG_anchor": "{:.2f}",
-        "VMAF-NEG_test": "{:.2f}",
-        "VMAF-NEG Δ": "{:.2f}",
+        "Bitrate_kbps": "{:.2f}",
+        "PSNR": "{:.4f}",
+        "SSIM": "{:.4f}",
+        "VMAF": "{:.2f}",
+        "VMAF-NEG": "{:.2f}",
     }
+    styled_details = df.sort_values(by=["Video", "RC", "Point", "Side"]).style.format(details_format, na_rep="-")
+    st.dataframe(styled_details, use_container_width=True, hide_index=True)
 
-    styled_comparison = merged[
-        [
-            "Video",
-            "RC",
-            "Point",
-            "Bitrate_kbps_anchor",
-            "Bitrate_kbps_test",
-            "Bitrate Δ%",
-            "PSNR_anchor",
-            "PSNR_test",
-            "PSNR Δ",
-            "SSIM_anchor",
-            "SSIM_test",
-            "SSIM Δ",
-            "VMAF_anchor",
-            "VMAF_test",
-            "VMAF Δ",
-            "VMAF-NEG_anchor",
-            "VMAF-NEG_test",
-            "VMAF-NEG Δ",
-        ]
-    ].sort_values(by=["Video", "Point"]).style.format(comparison_format, na_rep="-")
-
-    st.dataframe(
-        styled_comparison,
-        use_container_width=True,
-        hide_index=True,
-    )
 
 if has_bd:
-    st.header("BD-Rate", anchor="bd-rate")
-    if bd_rate_rows:
-        st.dataframe(pd.DataFrame(bd_rate_rows), use_container_width=True, hide_index=True)
-    else:
-        st.info("无法计算 BD-Rate（点位不足或缺少共同视频）。")
+    render_bd_rate_section(bd_list_for_overall)
+    render_bd_metrics_section(bd_list_for_overall)
 
-    st.header("BD-Metrics", anchor="bd-metrics")
-    if bd_metric_rows:
-        st.dataframe(pd.DataFrame(bd_metric_rows), use_container_width=True, hide_index=True)
-    else:
-        st.info("无法计算 BD-Metrics（点位不足或缺少共同视频）。")
 
 if perf_rows:
     df_perf = pd.DataFrame(perf_rows)
@@ -420,10 +406,10 @@ env_test = test_data.get("environment") or {}
 if env_anchor or env_test:
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Anchor 任务")
+        st.subheader("Anchor")
         st.markdown(format_env_info(env_anchor))
     with col2:
-        st.subheader("Test 任务")
+        st.subheader("Test")
         st.markdown(format_env_info(env_test))
 else:
     st.info("未采集到环境信息。")
