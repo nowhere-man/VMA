@@ -32,7 +32,7 @@ uv pip install -r requirements.txt
 ```
 
 Access the web UI at `http://localhost:8080`
-- Reports: `http://localhost:8079`
+- Reports: `http://localhost:8081`
 - API Docs: `http://localhost:8080/api/docs`
 
 ## Docker Deployment
@@ -61,7 +61,7 @@ docker run -d \
   --name vma \
   --restart unless-stopped \
   -p 8080:8080 \
-  -p 8079:8079 \
+  -p 8081:8081 \
   -v "${DATA_DIR}/jobs:/data/jobs" \
   -v "${DATA_DIR}/templates:/data/templates" \
   vma:latest

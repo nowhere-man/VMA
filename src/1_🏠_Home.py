@@ -47,8 +47,8 @@ def _set_job_query_param(job_id: str) -> None:
 
 
 # 支持从 FastAPI 任务详情页直接跳转：
-# - 码流分析：http://localhost:8079?job_id=<job_id>
-# - 模板指标：http://localhost:8079?template_job_id=<job_id>
+# - 码流分析：http://localhost:8081?job_id=<job_id>
+# - 模板指标：http://localhost:8081?template_job_id=<job_id>
 job_id = st.query_params.get("job_id")
 template_job_id = st.query_params.get("template_job_id")
 

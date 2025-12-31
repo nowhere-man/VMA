@@ -10,7 +10,7 @@
 
 ### 双服务设计
 ```
-FastAPI (8078)          Streamlit (8079)
+FastAPI (8078)          Streamlit (8081)
     ↓                         ↓
 任务管理/执行              报告可视化
     ↓                         ↓
@@ -207,7 +207,7 @@ if perf is not None:  # ← 检查 None
 ```
 
 **代码位置**：
-- `src/services/template_runner.py:203-211`（Metrics Comparison）
+- `src/services/metrics_comparison_runner.py:203-211`（Metrics Comparison）
 - `src/services/metrics_analysis_runner.py:72-77`（Metrics Analysis）
 
 ---
@@ -319,8 +319,8 @@ bd_metrics(r1, m1, r2, m2) → float  # BD-Metrics（绝对值）
 | 文件 | 用途 | 关键点 |
 |------|------|--------|
 | `src/services/ffmpeg.py` | FFmpeg 封装 | 编码、指标计算、管道打分 |
-| `src/services/bitstream_analysis.py` | 码流分析核心 | 返回两个值：(report, summary) |
-| `src/services/template_runner.py` | Metrics Comparison 执行器 | 使用共享性能模块，复用码流时添加 None |
+| `src/services/stream_analysis_runner.py` | Stream Analysis 执行器 | 返回两个值：(report, summary) |
+| `src/services/metrics_comparison_runner.py` | Metrics Comparison 执行器 | 使用共享性能模块，复用码流时添加 None |
 | `src/services/metrics_analysis_runner.py` | Metrics Analysis 执行器 | 使用 summary，保证数据结构统一 |
 | `src/utils/performance.py` | 性能监控共享模块 | CPU 采样、FPS 计算、编码时间 |
 | `src/utils/encoding.py` | 编码命令构建 | 分辨率/帧率转换滤镜 |
@@ -360,7 +360,7 @@ bd_metrics(r1, m1, r2, m2) → float  # BD-Metrics（绝对值）
 - 从首页点击"最近的Metrics详情报告"
 - 直接 URL: `/Metrics_Details?job_id={job_id}`
 
-**数据源**：`data/jobs/{job_id}/metrics_analysis/analyse_data.json`
+**数据源**：`data/jobs/{job_id}/metrics_analysis/metrics_analysis.json`
 
 **报告结构**：
 1. **Information** - 编码配置信息
@@ -391,8 +391,8 @@ for item in entry.get("encoded") or []:
 - 直接 URL: `/Metrics_Comparison?anchor_job={id1}&test_job={id2}`
 
 **数据源**：
-- Anchor: `data/jobs/{anchor_job}/metrics_analysis/analyse_data.json`
-- Test: `data/jobs/{test_job}/metrics_analysis/analyse_data.json`
+- Anchor: `data/jobs/{anchor_job}/metrics_analysis/metrics_analysis.json`
+- Test: `data/jobs/{test_job}/metrics_analysis/metrics_analysis.json`
 
 **报告结构**（与模板报告完全一致）：
 1. **Information** - 编码器配置对比
@@ -425,7 +425,7 @@ for item in entry.get("encoded") or []:
 - 从首页点击"模板对比报告"
 - 直接 URL: `/Metrics_Comparison?template_job_id={job_id}`
 
-**数据源**：`data/jobs/{job_id}/metrics_analysis/report_data.json`
+**数据源**：`data/jobs/{job_id}/metrics_analysis/metrics_comparison.json`
 
 **报告结构**：与任务对比报告**完全一致**
 
@@ -454,7 +454,7 @@ for item in side.get("encoded") or []:
 - 从首页点击"最近的Stream分析报告"
 - 直接 URL: `/Stream_Comparison?job_id={job_id}`
 
-**数据源**：`data/jobs/{job_id}/analysis/report_data.json`
+**数据源**：`data/jobs/{job_id}/analysis/stream_analysis.json`
 
 **报告结构**：
 1. **Reference Info** - 参考视频信息

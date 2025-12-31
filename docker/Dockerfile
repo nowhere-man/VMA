@@ -46,7 +46,7 @@ RUN mkdir -p /data/jobs /data/templates
 ENV PYTHONPATH=/app
 
 # 暴露端口
-EXPOSE 8080 8079
+EXPOSE 8080 8081
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

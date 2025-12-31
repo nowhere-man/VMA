@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 CONTAINER_NAME="vma"
 HOST_PORT="${VMA_HOST_PORT:-8080}"
-HOST_REPORTS_PORT="${VMA_REPORTS_HOST_PORT:-8079}"
+HOST_REPORTS_PORT="${VMA_REPORTS_HOST_PORT:-8081}"
 DATA_DIR="${VMA_DATA_DIR:-${SCRIPT_DIR}/data}"
 
 if [ -z "$1" ]; then
@@ -57,7 +57,7 @@ docker run -d \
     --name "${CONTAINER_NAME}" \
     --restart unless-stopped \
     -p "${HOST_PORT}:8080" \
-    -p "${HOST_REPORTS_PORT}:8079" \
+    -p "${HOST_REPORTS_PORT}:8081" \
     -v "${DATA_DIR}/jobs:/data/jobs" \
     -v "${DATA_DIR}/templates:/data/templates" \
     -e VMA_LOG_LEVEL="${VMA_LOG_LEVEL:-error}" \
