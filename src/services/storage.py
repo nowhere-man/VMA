@@ -188,7 +188,7 @@ class JobStorage:
         with open(metadata_path, "w", encoding="utf-8") as f:
             # 使用 Pydantic 的 model_dump 方法序列化
             metadata_dict = job.metadata.model_dump(mode="json")
-            json.dump(metadata_dict, f, ensure_ascii=False, indent=2)
+            json.dump(metadata_dict, f, ensure_ascii=False)
 
 
 # 全局单例

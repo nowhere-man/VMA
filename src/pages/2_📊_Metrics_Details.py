@@ -20,11 +20,11 @@ sys.path.insert(0, str(project_root))
 from src.utils.streamlit_helpers import (
     get_query_param,
     parse_rate_point as _parse_point,
-    format_env_info,
     list_metrics_jobs as _list_metrics_jobs,
     format_job_label as _format_job_label,
     load_analyse as _load_analyse,
     metric_value as _metric_value,
+    render_machine_info,
 )
 from src.utils.streamlit_metrics_components import (
     inject_smooth_scroll_css,
@@ -91,7 +91,11 @@ def _get_report_info(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-st.set_page_config(page_title="Metrics分析", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="首页 - VMR",
+    page_icon="📊",
+    layout="wide",
+)
 
 # 检查是否通过 query params 传入了任务 ID（用于显示单个任务详情）
 job_id = get_query_param("job_id")
@@ -118,7 +122,7 @@ if job_id:
     execution_time = data.get("execution_time", "")
 
     # 显示报告标题
-    st.markdown(f"<h1 style='text-align:center;'>{template_name} 报告详情</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align:center;'>{template_name} 详情报告</h1>", unsafe_allow_html=True)
     st.markdown(f"<h4 style='text-align:right;'>{job_id} {execution_time}</h4>", unsafe_allow_html=True)
 
     # 构建数据
@@ -173,12 +177,8 @@ if job_id:
         st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
 
     # Machine Info
-    st.header("Machine Info", anchor="环境信息")
     env = data.get("environment") or {}
-    if env:
-        st.markdown(format_env_info(env))
-    else:
-        st.write("未采集到环境信息。")
+    render_machine_info(env)
 
 else:
     # 显示报告列表模式

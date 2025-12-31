@@ -3,7 +3,7 @@ Metrics 对比页面
 
 支持三种模式：
 1. 无参数：显示选择界面 + 报告列表
-2. ?anchor_job=xxx&test_job=yyy：显示 Metrics Analysis 任务对比报告
+2. ?anchor_job=xxx&test_job=yyy：显示 Metrics Analysis 详情对比报告
 3. ?template_job_id=xxx：显示 Metrics Comparison 模板报告
 """
 
@@ -27,12 +27,15 @@ from src.utils.streamlit_helpers import (
     load_json_report,
     list_jobs,
     parse_rate_point as _parse_point,
-    format_env_info,
     render_overall_section,
     list_metrics_jobs as _list_metrics_jobs,
     format_job_label as _format_job_label,
     load_analyse as _load_analyse,
     metric_value as _metric_value,
+    render_machine_info,
+    _format_encoder_type,
+    _format_encoder_params,
+    _format_points,
 )
 from src.utils.streamlit_metrics_components import (
     inject_smooth_scroll_css,
@@ -152,27 +155,6 @@ def _get_report_info(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _format_encoder_type(value: Optional[Any]) -> str:
-    if isinstance(value, str):
-        return value or "-"
-    if value is not None:
-        return getattr(value, "value", str(value))
-    return "-"
-
-
-def _format_encoder_params(encoder_params: Optional[str]) -> str:
-    return encoder_params or "-"
-
-
-def _format_points(points: Optional[List[float]]) -> str:
-    if not points:
-        return "-"
-    clean = [p for p in points if isinstance(p, (int, float))]
-    if not clean:
-        return "-"
-    return ", ".join(f"{p:g}" for p in sorted(set(clean)))
-
-
 # ========== Metrics Comparison 模板报告相关函数 ==========
 
 def _list_template_jobs(limit: int = 50) -> List[Dict[str, Any]]:
@@ -196,14 +178,18 @@ def _collect_points(entries: List[Dict[str, Any]], side_key: str) -> List[float]
 
 # ========== 页面主逻辑 ==========
 
-st.set_page_config(page_title="Metrics对比", page_icon="🆚", layout="wide")
+st.set_page_config(
+    page_title="首页 - VMR",
+    page_icon="🆚",
+    layout="wide",
+)
 
 # 检查 URL 参数
 anchor_job = get_query_param("anchor_job")
 test_job = get_query_param("test_job")
 template_job_id = get_query_param("template_job_id")
 
-# 模式1: Metrics Analysis 任务对比报告
+# 模式1: Metrics Analysis 详情对比报告
 if anchor_job and test_job:
     st.markdown("""
 <style>
@@ -223,7 +209,7 @@ if anchor_job and test_job:
     anchor_template_name = anchor_data.get("template_name", "Unknown")
     test_template_name = test_data.get("template_name", "Unknown")
 
-    st.markdown(f"<h1 style='text-align:center;'>{anchor_template_name} VS {test_template_name} 对比报告</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align:center;'>{anchor_template_name} 🆚 {test_template_name} 对比报告</h1>", unsafe_allow_html=True)
 
     anchor_rows, anchor_perf_rows = _build_rows(anchor_data, "Anchor")
     test_rows, test_perf_rows = _build_rows(test_data, "Test")
@@ -297,19 +283,9 @@ if anchor_job and test_job:
     else:
         st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
 
-    st.header("Machine Info", anchor="环境信息")
     env_anchor = anchor_data.get("environment") or {}
     env_test = test_data.get("environment") or {}
-    if env_anchor or env_test:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Anchor")
-            st.markdown(format_env_info(env_anchor))
-        with col2:
-            st.subheader("Test")
-            st.markdown(format_env_info(env_test))
-    else:
-        st.info("未采集到环境信息。")
+    render_machine_info(env_anchor, env_test, "Anchor", "Test")
 
 # 模式2: Metrics Comparison 模板报告
 elif template_job_id:
@@ -592,20 +568,17 @@ elif template_job_id:
         st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
 
     # Machine Info
-    st.header("Machine Info", anchor="环境信息")
-    env = report.get("anchor_environment") or report.get("test_environment") or {}
-    if env:
-        st.markdown(format_env_info(env))
-    else:
-        st.write("未采集到环境信息。")
+    env_anchor = report.get("anchor_environment") or {}
+    env_test = report.get("test_environment") or {}
+    render_machine_info(env_anchor, env_test, "Anchor", "Test")
 
 # 模式3: 显示选择界面 + 报告列表
 else:
     st.markdown("<h1 style='text-align:left;'>🆚 Metrics 对比</h1>", unsafe_allow_html=True)
 
-    # 任务对比报告
+    # 详情对比报告
     st.markdown("---")
-    st.subheader("任务对比报告")
+    st.subheader("详情对比报告")
 
     jobs = _list_metrics_jobs()
     valid_jobs = [j for j in jobs if j["status_ok"]]

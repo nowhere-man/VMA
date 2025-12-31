@@ -842,3 +842,63 @@ def metric_value(metrics: Dict[str, Any], name: str, field: str) -> Optional[flo
     if isinstance(summary, dict) and field in summary:
         return summary.get(field)
     return block.get(field)
+
+
+def _format_encoder_type(value: Optional[Any]) -> str:
+    """格式化编码器类型"""
+    if isinstance(value, str):
+        return value or "-"
+    if value is not None:
+        return getattr(value, "value", str(value))
+    return "-"
+
+
+def _format_encoder_params(encoder_params: Optional[str]) -> str:
+    """格式化编码器参数"""
+    return encoder_params or "-"
+
+
+def _format_points(points: Optional[List[float]]) -> str:
+    """格式化码率点位列表"""
+    if not points:
+        return "-"
+    clean = [p for p in points if isinstance(p, (int, float))]
+    if not clean:
+        return "-"
+    return ", ".join(f"{p:g}" for p in sorted(set(clean)))
+
+
+def render_machine_info(
+    env_anchor: Dict[str, Any],
+    env_test: Optional[Dict[str, Any]] = None,
+    anchor_label: str = "Anchor",
+    test_label: str = "Test",
+) -> None:
+    """渲染环境信息
+
+    Args:
+        env_anchor: 基准环境信息（或单个环境信息）
+        env_test: 测试环境信息（可选，用于对比模式）
+        anchor_label: 基准环境标签
+        test_label: 测试环境标签
+    """
+    st.header("Machine Info", anchor="环境信息")
+
+    if env_test is not None:
+        # 对比模式：显示两列
+        if env_anchor or env_test:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader(anchor_label)
+                st.markdown(format_env_info(env_anchor))
+            with col2:
+                st.subheader(test_label)
+                st.markdown(format_env_info(env_test))
+        else:
+            st.info("未采集到环境信息。")
+    else:
+        # 单个环境模式
+        if env_anchor:
+            st.markdown(format_env_info(env_anchor))
+        else:
+            st.info("未采集到环境信息。")

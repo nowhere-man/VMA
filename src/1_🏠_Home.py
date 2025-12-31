@@ -69,7 +69,7 @@ if job_id:
     if job_id:
         st.session_state["bitstream_job_id"] = str(job_id)
         _set_job_query_param(str(job_id))
-        st.switch_page("pages/Stream_Analysis.py")
+        st.switch_page("pages/4_📈_Stream_Comparison.py")
 
 # 自定义CSS样式
 st.markdown(

@@ -203,7 +203,7 @@ class MetricsAnalysisRunner:
         data_path = analysis_root / "analyse_data.json"
         try:
             with open(data_path, "w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False, indent=2)
+                json.dump(result, f, ensure_ascii=False)
             if job:
                 result["data_file"] = str(data_path.relative_to(job.job_dir))
             else:

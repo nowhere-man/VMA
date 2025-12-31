@@ -136,7 +136,7 @@ class TaskProcessor:
         report_path = job.job_dir / report_rel_path
         report_path.parent.mkdir(parents=True, exist_ok=True)
         with open(report_path, "w", encoding="utf-8") as f:
-            json.dump(report_data, f, ensure_ascii=False, indent=2)
+            json.dump(report_data, f, ensure_ascii=False)
 
         job.metadata.execution_result = summary
         job_storage.update_job(job)
