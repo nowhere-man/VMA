@@ -125,6 +125,7 @@ async def jobs_list_page(
         {
             "job_id": job.metadata.job_id,
             "status": job.metadata.status.value,
+            "mode": job.metadata.mode.value,
             "template_name": job.metadata.template_name or "N/A",
             "created_at": _fmt_time(job.metadata.created_at) or "-",
             "completed_at": _fmt_time(job.metadata.completed_at) or "-",

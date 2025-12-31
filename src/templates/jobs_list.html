@@ -36,6 +36,9 @@
                         模板名
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        模板类型
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         任务ID
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -57,6 +60,12 @@
                 <tr class="hover:bg-gray-100">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {{ job.template_name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {% if job.mode == 'bitstream_analysis' %}Stream Analysis
+                        {% elif job.mode == 'metrics_analysis' %}Metrics Analysis
+                        {% elif job.mode == 'metrics_comparison' %}Metrics Comparison
+                        {% else %}{{ job.mode }}{% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono text-xs">
                         {{ job.job_id }}
