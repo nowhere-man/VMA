@@ -7,7 +7,7 @@ import shlex
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from src.models import CommandLog, CommandStatus
 from src.models.template import EncoderType
@@ -160,7 +160,7 @@ def build_encode_cmd(
     encoder_path: Optional[str] = None,
     shortest_size: Optional[int] = None,
     target_fps: Optional[float] = None,
-) -> Tuple[List[str], int, int, float]:
+) -> Tuple[Union[List[str], str], int, int, float]:
     """
     构建编码命令
 
@@ -177,7 +177,7 @@ def build_encode_cmd(
 
     Returns:
         (cmd, out_width, out_height, out_fps)
-        - cmd: 编码命令列表
+        - cmd: 编码命令（List[str] 或管道命令字符串）
         - out_width: 输出宽度
         - out_height: 输出高度
         - out_fps: 输出帧率
@@ -195,7 +195,7 @@ def build_encode_cmd(
     )
 
     if enc == EncoderType.FFMPEG:
-        cmd = [ffmpeg_path, "-y"]
+        cmd = [ffmpeg_path, "-y", "-nostdin", "-noautorotate", "-an"]
         if src.is_yuv:
             cmd += [
                 "-f", "rawvideo",
@@ -217,32 +217,57 @@ def build_encode_cmd(
         cmd += [str(output)]
         return cmd, out_width, out_height, out_fps
 
-    # 非 FFmpeg 编码器（x264/x265/vvenc）
+    # 非 FFmpeg 编码器
     # 这些编码器需要通过管道接收 rawvideo 输入
-    cmd = [ffmpeg_path, "-y"]
+
+    # 第一阶段：FFmpeg 解码并输出 rawvideo
+    ffmpeg_cmd = [ffmpeg_path, "-y", "-nostdin", "-noautorotate", "-an"]
     if src.is_yuv:
-        cmd += [
+        ffmpeg_cmd += [
             "-f", "rawvideo",
             "-pix_fmt", src.pix_fmt,
             "-s:v", f"{src.width}x{src.height}",
             "-r", str(src.fps),
-            "-i", str(src.path),
         ]
-    else:
-        cmd += ["-i", str(src.path)]
+    ffmpeg_cmd += ["-i", str(src.path)]
 
     # 使用 -vf 滤镜进行帧率和分辨率转换
     if vf_filter:
-        cmd += ["-vf", vf_filter]
+        ffmpeg_cmd += ["-vf", vf_filter]
 
-    cmd += ["-c:v", enc.value]
-    cmd += strip_rc_tokens(enc, params)
+    # 输出 rawvideo 到 stdout
+    ffmpeg_cmd += ["-f", "rawvideo", "-pix_fmt", "yuv420p", "-"]
+
+    # 第二阶段：独立编码器从 stdin 读取并编码
+    encoder_bin = encoder_path if encoder_path else enc.value
+    encoder_cmd = [encoder_bin]
+
+    # 添加输入参数
+    encoder_cmd += ["--input-res", f"{out_width}x{out_height}"]
+    encoder_cmd += ["--fps", str(out_fps)]
+    encoder_cmd += ["--input-csp", "i420"]
+
+    # 添加用户参数
+    encoder_cmd += strip_rc_tokens(enc, params)
+
+    # 添加码率控制参数
     if rc.lower() == "crf":
-        cmd += ["--crf", val_str]
+        encoder_cmd += ["--crf", val_str]
     else:
-        cmd += ["--bitrate", val_str]
-    cmd += [str(output)]
-    return cmd, out_width, out_height, out_fps
+        encoder_cmd += ["--bitrate", val_str]
+
+    # 输出文件
+    encoder_cmd += ["-o", str(output)]
+
+    # stdin 输入
+    encoder_cmd += ["-"]
+
+    # 构建管道命令字符串
+    ffmpeg_cmd_str = " ".join(shlex.quote(str(arg)) for arg in ffmpeg_cmd)
+    encoder_cmd_str = " ".join(shlex.quote(str(arg)) for arg in encoder_cmd)
+    pipeline_cmd = f"{ffmpeg_cmd_str} | {encoder_cmd_str}"
+
+    return pipeline_cmd, out_width, out_height, out_fps
 
 
 def start_command(job, command_type: str, command: List[str], source_file: Optional[str], storage) -> Optional[CommandLog]:

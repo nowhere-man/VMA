@@ -704,8 +704,6 @@ else:
 
 
 # ========== Performance ==========
-st.header("Performance", anchor="performance")
-
 # 收集性能数据
 perf_rows = []
 perf_detail_rows = []

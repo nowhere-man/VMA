@@ -96,6 +96,9 @@ def render_performance_section(
             .applymap(color_positive_red, subset=["Δ CPU Avg(%)"])
             .format(perf_format_dict, na_rep="-")
         )
+
+        st.subheader("Delta", anchor="perf-diff")
+
         perf_metric_config = {
             "Δ FPS": {"fmt": "{:+.2f}", "pos": "#00cc96", "neg": "#ef553b"},
             "Δ CPU Avg(%)": {"fmt": "{:+.2f}%", "pos": "#ef553b", "neg": "#00cc96"},

@@ -273,7 +273,7 @@ class FFmpegService:
         - 当 scale_width/scale_height 提供时，对输出进行缩放（用于与参考视频对齐分辨率）。
         - add_command_callback/update_status_callback 可选，用于在任务日志中记录 ffmpeg 命令
         """
-        cmd: List[str] = [self.ffmpeg_path, "-y"]
+        cmd: List[str] = [self.ffmpeg_path, "-y", "-nostdin", "-noautorotate", "-an"]
 
         # 输入
         if input_width is not None and input_height is not None:
@@ -593,7 +593,7 @@ class FFmpegService:
         vmaf_csv = analysis_dir / "vmaf.csv"
 
         # 构建源视频处理命令
-        ref_cmd_parts = [self.ffmpeg_path, "-y"]
+        ref_cmd_parts = [self.ffmpeg_path, "-y", "-nostdin", "-noautorotate", "-an"]
         if ref_is_yuv:
             ref_cmd_parts.extend([
                 "-f", "rawvideo",
@@ -611,7 +611,7 @@ class FFmpegService:
         ref_cmd_parts.extend(["-c:v", "rawvideo", "-f", "rawvideo", "-an", "-"])
 
         # 构建编码视频处理命令
-        enc_cmd_parts = [self.ffmpeg_path, "-y"]
+        enc_cmd_parts = [self.ffmpeg_path, "-y", "-nostdin", "-noautorotate", "-an"]
         if enc_is_yuv:
             enc_cmd_parts.extend([
                 "-f", "rawvideo",
@@ -665,8 +665,8 @@ class FFmpegService:
         results["ssim"] = ssim_result
 
         # 计算 VMAF（同时计算 vmaf 和 vmaf_neg）
-        vmaf_model = "version=vmaf_v0.6.1\\:name=vmaf|version=vmaf_v0.6.1neg\\:name=vmaf_neg"
-        vmaf_filter = f"libvmaf='model={vmaf_model}':n_threads=8:log_fmt=csv:log_path={vmaf_csv}"
+        vmaf_model = "version=vmaf_v0.6.1\\\\:name=vmaf|version=vmaf_v0.6.1neg\\\\:name=vmaf_neg"
+        vmaf_filter = f"libvmaf='model={vmaf_model}':n_threads=16:log_fmt=csv:log_path={vmaf_csv}"
         vmaf_result = await self._run_pipeline_metric(
             ref_cmd_parts=ref_cmd_parts,
             enc_cmd_parts=enc_cmd_parts,
@@ -710,20 +710,18 @@ class FFmpegService:
         """
         # 构建完整的 shell 命令
         # 使用 process substitution 来实现两个输入管道
-        ref_cmd_str = " ".join(ref_cmd_parts)
-        enc_cmd_str = " ".join(enc_cmd_parts)
+        import shlex
+        ref_cmd_str = " ".join(shlex.quote(str(arg)) for arg in ref_cmd_parts)
+        enc_cmd_str = " ".join(shlex.quote(str(arg)) for arg in enc_cmd_parts)
 
-        # 打分命令：接收两个 rawvideo 输入
-        # 注意：ffmpeg 滤镜的第一个输入为待测(distorted)，第二个为参考(reference)
-        score_cmd = (
+        # 使用 process substitution 构建完整命令
+        # fmpeg 滤镜的第一个输入为待测(distorted)，第二个为参考(reference)
+        full_cmd = (
             f"{self.ffmpeg_path} -y "
-            f"-f rawvideo -pix_fmt yuv420p -s {score_width}x{score_height} -r {score_fps} -i pipe:3 "
-            f"-f rawvideo -pix_fmt yuv420p -s {score_width}x{score_height} -r {score_fps} -i pipe:4 "
-            f"-filter_complex '{metric_filter}' -f null -"
+            f"-f rawvideo -pix_fmt yuv420p -s {score_width}x{score_height} -r {score_fps} -i <({enc_cmd_str}) "
+            f"-f rawvideo -pix_fmt yuv420p -s {score_width}x{score_height} -r {score_fps} -i <({ref_cmd_str}) "
+            f"-filter_complex \"{metric_filter}\" -f null -"
         )
-
-        # 完整的 shell 命令
-        full_cmd = f"({enc_cmd_str}) 3>&1 | ({ref_cmd_str}) 4>&1 | {score_cmd}"
 
         # 记录命令
         cmd_id = None
@@ -733,11 +731,12 @@ class FFmpegService:
             update_status_callback(cmd_id, "running")
 
         try:
-            # 使用 shell=True 执行管道命令
+            # 使用 bash 执行管道命令
             process = await asyncio.create_subprocess_shell(
                 full_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                executable='/bin/bash',
             )
             stdout, stderr = await _wait_for_process(process, settings.ffmpeg_timeout)
 

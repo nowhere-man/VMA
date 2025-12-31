@@ -40,7 +40,6 @@ from src.utils.template_helpers import fingerprint as _fingerprint
 class PerformanceData:
     """编码性能数据"""
     encoding_fps: Optional[float] = None
-    avg_frame_time_ms: Optional[float] = None
     total_encoding_time_s: Optional[float] = None
     total_frames: Optional[int] = None
     cpu_avg_percent: Optional[float] = None
@@ -51,8 +50,6 @@ class PerformanceData:
         result: Dict[str, Any] = {}
         if self.encoding_fps is not None:
             result["encoding_fps"] = round(self.encoding_fps, 2)
-        if self.avg_frame_time_ms is not None:
-            result["avg_frame_time_ms"] = round(self.avg_frame_time_ms, 2)
         if self.total_encoding_time_s is not None:
             result["total_encoding_time_s"] = round(self.total_encoding_time_s, 2)
         if self.total_frames is not None:
@@ -70,36 +67,46 @@ def _parse_encoder_output(stderr: str, encoder_type: EncoderType) -> Tuple[Optio
     """
     解析编码器输出，提取帧数、FPS、总时间
     返回: (frames, fps, total_time_s)
+    Pattern Example:
+        - FFmpeg: frame=  300 fps=177 q=-1.0 Lsize=    1041KiB time=00:00:09.93 bitrate= 858.5kbits/s speed=5.88x elapsed=0:00:01.69
+        - x264: encoded 300 frames, 176.02 fps, 2075.52 kb/s
+        - x265: encoded 300 frames in 4.00s (74.98 fps), 1849.22 kb/s, Avg QP:41.18
+        - vvencapp: vvencapp [info]: Total Time: 19.708 sec. Fps(avg): 15.222 encoded Frames 300
     """
     frames: Optional[int] = None
     fps: Optional[float] = None
     total_time: Optional[float] = None
 
     if encoder_type == EncoderType.FFMPEG:
-        # ffmpeg: frame= 300 fps=28.5 ...
-        # 取最后一个匹配（最终结果）
-        matches = re.findall(r"frame=\s*(\d+).*?fps=\s*([\d.]+)", stderr)
+        matches = re.findall(r"frame=\s*(\d+).*?fps=\s*([\d.]+).*?elapsed=(\d+):(\d+):([\d.]+)", stderr)
         if matches:
             last_match = matches[-1]
             frames = int(last_match[0])
             fps = float(last_match[1])
-            if fps > 0:
-                total_time = frames / fps
+            # elapsed格式: HH:MM:SS.ms -> 转换为秒
+            hours = int(last_match[2])
+            minutes = int(last_match[3])
+            seconds = float(last_match[4])
+            total_time = hours * 3600 + minutes * 60 + seconds
     elif encoder_type == EncoderType.X264:
-        # x264: encoded 300 frames, 28.57 fps, 1234.56 kb/s
         m = re.search(r"encoded\s+(\d+)\s+frames,\s+([\d.]+)\s+fps", stderr)
         if m:
             frames = int(m.group(1))
             fps = float(m.group(2))
-            if fps > 0:
-                total_time = frames / fps
-    elif encoder_type in {EncoderType.X265, EncoderType.VVENC}:
-        # x265/vvenc: encoded 300 frames in 10.50s (28.57 fps), 1234.56 kb/s
+            total_time = None  # x264 不提供 total_time
+    elif encoder_type == EncoderType.X265:
+
         m = re.search(r"encoded\s+(\d+)\s+frames\s+in\s+([\d.]+)s\s+\(([\d.]+)\s+fps\)", stderr)
         if m:
             frames = int(m.group(1))
             total_time = float(m.group(2))
             fps = float(m.group(3))
+    elif encoder_type == EncoderType.VVENC:
+        m = re.search(r"Total Time:\s+([\d.]+)\s+sec.*?Fps\(avg\):\s+([\d.]+).*?encoded Frames\s+(\d+)", stderr)
+        if m:
+            total_time = float(m.group(1))
+            fps = float(m.group(2))
+            frames = int(m.group(3))
 
     return frames, fps, total_time
 
@@ -185,7 +192,6 @@ async def _run_encode_with_perf(
         perf.total_frames = frames
     if fps is not None and fps > 0:
         perf.encoding_fps = fps
-        perf.avg_frame_time_ms = 1000.0 / fps
     if total_time is not None:
         perf.total_encoding_time_s = total_time
     elif fps and frames:
@@ -194,6 +200,10 @@ async def _run_encode_with_perf(
     # 如果没有从日志解析到时间，使用外部计时
     if perf.total_encoding_time_s is None:
         perf.total_encoding_time_s = end_time - start_time
+
+    # 如果没有从日志解析到FPS，从帧数和时间计算
+    if perf.encoding_fps is None and perf.total_frames and perf.total_encoding_time_s and perf.total_encoding_time_s > 0:
+        perf.encoding_fps = perf.total_frames / perf.total_encoding_time_s
 
     # CPU数据
     if cpu_samples:
@@ -402,17 +412,6 @@ async def _encode_side(
     return outputs, perf_data
 
 
-def _extract_bitrate_point(path: Path) -> Optional[float]:
-    stem = path.stem
-    parts = stem.split("_")
-    if len(parts) < 3:
-        return None
-    try:
-        return float(parts[-1])
-    except Exception:
-        return None
-
-
 async def run_template(
     template: EncodingTemplate,
     job=None,
@@ -561,12 +560,12 @@ async def run_template(
         def _extract_metric_value(item, key):
             # vmaf_neg_mean 在 vmaf 结构里，不是单独的 vmaf_neg 结构
             if key == "vmaf_neg":
-                metric = ((item.get("metrics") or {}).get("vmaf") or {}).get("summary") or {}
+                metric = (item.get("metrics") or {}).get("vmaf") or {}
                 if not metric:
                     metric = item.get("vmaf") or {}
                 val = metric.get("vmaf_neg_mean")
             else:
-                metric = ((item.get("metrics") or {}).get(key) or {}).get("summary") or {}
+                metric = (item.get("metrics") or {}).get(key) or {}
                 if not metric:
                     metric = item.get(key) or {}
                 val = metric.get(f"{key}_avg") or metric.get(f"{key}_mean")

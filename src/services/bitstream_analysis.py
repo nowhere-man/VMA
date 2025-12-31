@@ -32,32 +32,6 @@ def _frame_size_bytes_yuv420p(width: int, height: int) -> int:
     return (width * height * 3) // 2
 
 
-def _count_yuv420p_frames(path: Path, width: int, height: int) -> int:
-    frame_size = _frame_size_bytes_yuv420p(width, height)
-    if frame_size <= 0:
-        raise ValueError("Invalid frame size for yuv420p")
-    size = path.stat().st_size
-    if size % frame_size != 0:
-        raise ValueError(f"YUV 文件大小与分辨率不匹配: {path.name} (size={size}, frame={frame_size})")
-    return size // frame_size
-
-
-async def _run_subprocess(cmd: List[str]) -> None:
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        _, stderr = await asyncio.wait_for(process.communicate(), timeout=settings.ffmpeg_timeout)
-    except asyncio.TimeoutError:
-        process.kill()
-        raise RuntimeError("Command timed out")
-
-    if process.returncode != 0:
-        raise RuntimeError(stderr.decode(errors="ignore"))
-
-
 async def _infer_input_format(path: Path) -> Optional[str]:
     if path.stat().st_size == 0:
         raise RuntimeError(f"文件为空: {path.name}")
@@ -278,9 +252,10 @@ async def build_bitstream_report(
                 "label": enc_label,
                 "scaled_to_reference": scaled and upscale_to_source,
                 "avg_bitrate_bps": avg_bitrate_bps,
-                "psnr": psnr_data.get("summary", {}),
-                "ssim": ssim_data.get("summary", {}),
-                "vmaf": vmaf_data.get("summary", {}),
+                "fps": enc_fps,
+                "psnr": psnr_data,
+                "ssim": ssim_data,
+                "vmaf": vmaf_data,
                 "bitrate": {
                     "frame_types": frame_types,
                     "frame_sizes": frame_sizes,
