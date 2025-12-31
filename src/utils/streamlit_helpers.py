@@ -805,3 +805,40 @@ def format_env_info(env: Dict[str, Any]) -> str:
     lines.append(f"- **运行时间**: {exec_time}")
 
     return "\n".join(lines)
+
+
+# ========== Metrics Analysis 共享函数 ==========
+
+def list_metrics_jobs(limit: int = 100) -> List[Dict[str, Any]]:
+    """列出 Metrics Analysis 任务"""
+    return list_jobs("metrics_analysis/analyse_data.json", limit=limit, check_status=True)
+
+
+def format_job_label(job: Dict[str, Any]) -> str:
+    """格式化任务显示标签: <template-name>_<yyyy-MM-dd_hh:mm:ss>_<task-id>"""
+    from datetime import datetime
+
+    job_id = job.get("job_id", "unknown")
+    template_name = job.get("report_data", {}).get("template_name", "unknown")
+
+    mtime = job.get("mtime", 0)
+    dt = datetime.fromtimestamp(mtime)
+    timestamp = dt.strftime("%Y-%m-%d_%H:%M:%S")
+
+    return f"{template_name}_{timestamp}_{job_id}"
+
+
+def load_analyse(job_id: str) -> Dict[str, Any]:
+    """加载 Metrics Analysis 任务数据"""
+    return load_json_report(job_id, "metrics_analysis/analyse_data.json")
+
+
+def metric_value(metrics: Dict[str, Any], name: str, field: str) -> Optional[float]:
+    """从 metrics 字典中提取指标值"""
+    block = metrics.get(name) or {}
+    if not isinstance(block, dict):
+        return None
+    summary = block.get("summary") or {}
+    if isinstance(summary, dict) and field in summary:
+        return summary.get(field)
+    return block.get(field)

@@ -506,3 +506,237 @@ def render_bd_metrics_section(bd_list: list) -> None:
         st.plotly_chart(_create_bd_metrics_bar_chart(df_bdm, "bd_vmaf_neg", "BD VMAF-NEG"), use_container_width=True)
     else:
         st.info("暂无 BD-Metrics 数据。")
+
+
+def render_sidebar_contents_single() -> None:
+    """渲染单侧报告的侧边栏目录"""
+    st.markdown("### 📑 Contents")
+    contents = [
+        "- [Information](#information)",
+        "- [Overall](#overall)",
+        "- [Metrics](#metrics)",
+        "  - [RD Curves](#rd-curves)",
+        "  - [Details](#details)",
+        "- [Performance](#performance)",
+        "  - [CPU Usage](#cpu-usage)",
+        "  - [FPS](#fps)",
+        "  - [Details](#perf-details)",
+        "- [Machine Info](#环境信息)",
+    ]
+    st.markdown("\n".join(contents), unsafe_allow_html=True)
+
+
+def render_single_information(info: dict) -> None:
+    """渲染单列Information表格"""
+    import pandas as pd
+    from src.utils.streamlit_helpers import _format_encoder_type, _format_encoder_params, _format_points
+
+    info_df = pd.DataFrame([
+        {"项目": "编码器类型", "值": _format_encoder_type(info.get("encoder_type"))},
+        {"项目": "编码参数", "值": _format_encoder_params(info.get("encoder_params"))},
+        {"项目": "码率点位", "值": _format_points(info.get("bitrate_points"))},
+    ])
+    st.dataframe(info_df, use_container_width=True, hide_index=True)
+
+
+def render_single_overall(df_metrics: "pd.DataFrame", df_perf: "pd.DataFrame") -> None:
+    """渲染单侧Overall（无BD-Rate）"""
+    import pandas as pd
+    from src.utils.streamlit_helpers import _summary_stats, _render_overall_table
+
+    if df_metrics.empty:
+        st.info("暂无可用的指标数据。")
+        return
+
+    point_list = sorted(df_metrics["Point"].dropna().unique().tolist())
+    if not point_list:
+        st.info("暂无可用的码率点位数据。")
+        return
+
+    point_label_col, point_select_col, point_spacer_col = st.columns([1, 2, 6])
+    with point_label_col:
+        st.markdown("**码率点位**")
+    with point_select_col:
+        selected_point = st.selectbox("选择码率点位", point_list, key="single_overall_point", label_visibility="collapsed")
+    point_spacer_col.empty()
+
+    point_df = df_metrics[df_metrics["Point"] == selected_point]
+    if point_df.empty:
+        st.warning("选中点位没有数据。")
+        return
+
+    psnr_avg, psnr_max, psnr_min = _summary_stats(point_df["PSNR"])
+    ssim_avg, ssim_max, ssim_min = _summary_stats(point_df["SSIM"])
+    vmaf_avg, vmaf_max, vmaf_min = _summary_stats(point_df["VMAF"])
+    vmaf_neg_avg, vmaf_neg_max, vmaf_neg_min = _summary_stats(point_df["VMAF-NEG"])
+
+    metrics_df = pd.DataFrame({
+        "平均": [psnr_avg, ssim_avg, vmaf_avg, vmaf_neg_avg],
+        "最大": [psnr_max, ssim_max, vmaf_max, vmaf_neg_max],
+        "最小": [psnr_min, ssim_min, vmaf_min, vmaf_neg_min],
+    }, index=["PSNR", "SSIM", "VMAF", "VMAF-NEG"])
+
+    performance_df = pd.DataFrame()
+    if not df_perf.empty:
+        perf_point_df = df_perf[df_perf["Point"] == selected_point]
+        if not perf_point_df.empty:
+            cpu_avg, cpu_max, cpu_min = _summary_stats(perf_point_df["CPU Avg(%)"])
+            fps_avg, fps_max, fps_min = _summary_stats(perf_point_df["FPS"])
+            performance_df = pd.DataFrame({
+                "平均": [cpu_avg, fps_avg],
+                "最大": [cpu_max, fps_max],
+                "最小": [cpu_min, fps_min],
+            }, index=["CPU Usage", "FPS"])
+
+    bitrate_avg, bitrate_max, bitrate_min = _summary_stats(point_df["Bitrate_kbps"])
+    bitrate_df = pd.DataFrame({
+        "平均": [bitrate_avg],
+        "最大": [bitrate_max],
+        "最小": [bitrate_min],
+    }, index=["Bitrate"])
+
+    metrics_col, perf_bitrate_col = st.columns(2)
+    with metrics_col:
+        _render_overall_table("Metrics", metrics_df, ".4f", "", ("green", "red"), empty_text="暂无 Metrics 数据。")
+    with perf_bitrate_col:
+        _render_overall_table("Performance", performance_df, ".2f", "%", ("green", "red"), row_rules={"CPU Usage": ("red", "green")}, empty_text="暂无 Performance 数据。")
+        _render_overall_table("Bitrate", bitrate_df, ".2f", " kbps", ("red", "green"), empty_text="暂无 Bitrate 数据。")
+
+
+def render_single_rd_curves(df: "pd.DataFrame") -> None:
+    """渲染单条RD曲线"""
+    import plotly.graph_objects as go
+
+    st.subheader("RD Curves", anchor="rd-curves")
+    video_list = df["Video"].unique().tolist()
+    metric_options = ["PSNR", "SSIM", "VMAF", "VMAF-NEG"]
+
+    col_select, col_chart = st.columns([1, 3])
+    with col_select:
+        st.write("")
+        st.write("")
+        selected_video = st.selectbox("选择视频", video_list, key="single_rd_video")
+        selected_metric = st.selectbox("选择指标", metric_options, key="single_rd_metric")
+
+    video_df = df[df["Video"] == selected_video].sort_values("Bitrate_kbps")
+
+    fig_rd = go.Figure()
+    fig_rd.add_trace(go.Scatter(
+        x=video_df["Bitrate_kbps"],
+        y=video_df[selected_metric],
+        mode="lines+markers",
+        name=selected_metric,
+        marker=dict(size=10, color="#636efa"),
+        line=dict(width=2, shape="spline", smoothing=1.3, color="#636efa"),
+    ))
+    fig_rd.update_layout(
+        title=f"RD Curve - {selected_video}",
+        xaxis_title="Bitrate (kbps)",
+        yaxis_title=selected_metric,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    )
+    with col_chart:
+        st.plotly_chart(fig_rd, use_container_width=True)
+
+
+def render_single_performance(df_perf: "pd.DataFrame") -> None:
+    """渲染单侧Performance"""
+    import plotly.graph_objects as go
+    from src.utils.streamlit_helpers import aggregate_cpu_samples, create_fps_chart
+
+    st.header("Performance", anchor="performance")
+
+    if df_perf is None or df_perf.empty:
+        st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
+        return
+
+    # CPU Usage
+    st.subheader("CPU Usage", anchor="cpu-usage")
+    video_list_perf = df_perf["Video"].unique().tolist()
+    if video_list_perf:
+        col_sel_perf1, col_sel_perf2 = st.columns(2)
+        with col_sel_perf1:
+            selected_video_perf = st.selectbox("选择视频", video_list_perf, key="single_perf_video")
+        with col_sel_perf2:
+            point_list_perf = df_perf[df_perf["Video"] == selected_video_perf]["Point"].unique().tolist()
+            selected_point_perf = st.selectbox("选择码率点位", point_list_perf, key="single_perf_point")
+
+        agg_interval = st.slider("聚合间隔 (ms)", min_value=100, max_value=1000, value=100, step=100, key="single_cpu_agg")
+
+        cpu_samples = []
+        for _, row in df_perf.iterrows():
+            if row["Video"] == selected_video_perf and row["Point"] == selected_point_perf:
+                cpu_samples = row.get("cpu_samples", []) or []
+                break
+
+        if cpu_samples:
+            cpu_x, cpu_y = aggregate_cpu_samples(cpu_samples, agg_interval)
+            fig_cpu = go.Figure()
+            fig_cpu.add_trace(go.Scatter(
+                x=cpu_x, y=cpu_y,
+                mode="lines",
+                name="CPU",
+                line=dict(color="#636efa", width=2),
+            ))
+            if cpu_y:
+                max_idx = cpu_y.index(max(cpu_y))
+                fig_cpu.add_trace(go.Scatter(
+                    x=[cpu_x[max_idx]], y=[cpu_y[max_idx]],
+                    mode="markers+text",
+                    name="Max",
+                    marker=dict(color="#636efa", size=12, symbol="star"),
+                    text=[f"Max: {cpu_y[max_idx]:.1f}%"],
+                    textposition="top center",
+                    showlegend=False,
+                ))
+            fig_cpu.update_layout(
+                title=f"CPU占用率 - {selected_video_perf} ({selected_point_perf})",
+                xaxis_title="Time (s)",
+                yaxis_title="CPU (%)",
+                hovermode="x unified",
+            )
+            st.plotly_chart(fig_cpu, use_container_width=True)
+
+            avg_cpu = sum(cpu_samples) / len(cpu_samples) if cpu_samples else 0
+            st.metric("Average CPU Usage", f"{avg_cpu:.2f}%")
+        else:
+            st.info("该视频/点位没有CPU采样数据。")
+
+    # FPS
+    st.subheader("FPS", anchor="fps")
+    df_sorted = df_perf.sort_values(by=["Video", "Point"])
+    df_sorted["x_label"] = df_sorted["Video"].astype(str) + "_" + df_sorted["Point"].astype(str)
+
+    fig_fps = go.Figure()
+    fig_fps.add_trace(go.Scatter(
+        x=df_sorted["x_label"],
+        y=df_sorted["FPS"],
+        mode="lines+markers",
+        name="FPS",
+        line=dict(color="#636efa", width=2),
+        marker=dict(size=8),
+    ))
+    fig_fps.update_layout(
+        title="FPS",
+        xaxis_title="Video_Point",
+        yaxis_title="FPS",
+        hovermode="x unified",
+        xaxis=dict(tickangle=-45),
+    )
+    st.plotly_chart(fig_fps, use_container_width=True)
+
+    # Details
+    st.subheader("Details", anchor="perf-details")
+    with st.expander("查看详细性能数据", expanded=False):
+        df_detail = df_perf.drop(columns=["cpu_samples"], errors="ignore")
+        fmt = {
+            "Point": "{:.2f}",
+            "FPS": "{:.2f}",
+            "CPU Avg(%)": "{:.2f}",
+            "CPU Max(%)": "{:.2f}",
+            "Total Time(s)": "{:.2f}",
+            "Frames": "{:.0f}",
+        }
+        styled_perf_detail = df_detail.sort_values(by=["Video", "Point"]).style.format(fmt, na_rep="-")
+        st.dataframe(styled_perf_detail, use_container_width=True, hide_index=True)

@@ -32,9 +32,9 @@ VMA/
 │   │   ├── bd_rate.py          # BD-Rate 计算
 │   │   └── streamlit_*.py      # Streamlit 辅助工具
 │   ├── pages/                  # Streamlit 报告页面
-│   │   ├── 2_📊_Metrics_Analysis.py
+│   │   ├── 2_📊_Metrics_Details.py
 │   │   ├── 3_🆚_Metrics_Comparison.py
-│   │   └── 4_📈_Stream_Analysis.py
+│   │   └── 4_📈_Stream_Comparison.py
 │   └── templates/              # Jinja2 HTML 模板（FastAPI Web UI）
 ├── config.yml                  # 配置文件
 └── run.sh                      # 启动脚本
@@ -192,11 +192,11 @@ ffmpeg -f rawvideo -s 1920x1080 -r 30 -i pipe:3 -f rawvideo -s 1920x1080 -r 30 -
 
 ### 首页 (1_🏠_Home.py)
 
-- 显示最近的码流分析报告列表
+- 显示最近的Stream分析报告列表
 - 显示最近的 Metrics 对比报告列表
 - 支持从 FastAPI 跳转（通过 query params）
 
-### Metrics Analysis 页面 (2_📊_Metrics_Analysis.py)
+### Metrics Analysis 页面 (2_📊_Metrics_Details.py)
 
 **重要要求**：Metrics Analysis 页面选择两个 Metrics Analysis 任务（Anchor 和 Test）后生成的对比报告，必须与 Metrics Comparison 页面的报告结构完全一致。
 
@@ -240,7 +240,7 @@ ffmpeg -f rawvideo -s 1920x1080 -r 30 -i pipe:3 -f rawvideo -s 1920x1080 -r 30 -
 - 编码性能对比（FPS、CPU）
 - 环境信息展示
 
-### Stream Analysis 页面 (4_📈_Stream_Analysis.py)
+### Stream Analysis 页面 (4_📈_Stream_Comparison.py)
 
 - 码流分析结果展示
 - 逐帧 PSNR/SSIM/VMAF 曲线

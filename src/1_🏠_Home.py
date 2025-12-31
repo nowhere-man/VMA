@@ -23,8 +23,13 @@ st.set_page_config(
 
 
 def _list_bitstream_jobs(limit: int = 20) -> List[Dict]:
-    """列出最近的码流分析报告 job_id 列表（按 report_data.json 修改时间倒序）。"""
+    """列出最近的Stream分析报告 job_id 列表（按 report_data.json 修改时间倒序）。"""
     return list_jobs("bitstream_analysis/report_data.json", limit=limit)
+
+
+def _list_metrics_analysis_jobs(limit: int = 20) -> List[Dict]:
+    """列出📊 Metrics job_id 列表。"""
+    return list_jobs("metrics_analysis/analyse_data.json", limit=limit, check_status=True)
 
 
 def _list_template_jobs(limit: int = 20) -> List[Dict]:
@@ -97,35 +102,31 @@ st.markdown(
 )
 
 # 主标题居中
-st.markdown("<h1 class='main-header' style='text-align:center;'>📑 Video Metrics Reporter</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header' style='text-align:left;'>📑 Video Metrics Reporter</h1>", unsafe_allow_html=True)
 
-# 最近的码流分析报告列表
-st.subheader("最近的码流分析报告")
-recent_jobs = _list_bitstream_jobs(limit=5)
-if not recent_jobs:
+# 最近的Metrics详情报告列表
+st.subheader("最近的Metrics详情报告")
+metrics_analysis_jobs = _list_metrics_analysis_jobs(limit=5)
+if not metrics_analysis_jobs:
     st.info("暂未找到报告，请先创建任务。")
 else:
     from datetime import datetime
-    from pathlib import Path
 
-    for item in recent_jobs:
+    for item in metrics_analysis_jobs:
+        if not item.get("status_ok", True):
+            continue
         job_id = item["job_id"]
         report_data = item.get("report_data", {})
+        template_name = report_data.get("template_name", "Unknown")
 
-        # 格式：源流名字（不带后缀名）-日期-时间-任务id
-        ref = report_data.get("reference", {}) or {}
-        ref_label = ref.get("label", "Unknown")
-        source_name = Path(ref_label).stem
-
-        # 从 mtime 提取日期和时间
         dt = datetime.fromtimestamp(item["mtime"])
         date_str = dt.strftime("%Y-%m-%d")
         time_str = dt.strftime("%H:%M:%S")
 
-        display_name = f"{source_name}-{date_str}-{time_str}-{job_id}"
+        display_name = f"{template_name}-{date_str}-{time_str}-{job_id}"
 
         st.markdown(
-            f"- <a href='/Stream_Analysis?job_id={job_id}' target='_blank'>{display_name}</a>",
+            f"- <a href='/Metrics_Analysis?job_id={job_id}' target='_blank'>{display_name}</a>",
             unsafe_allow_html=True,
         )
 
@@ -140,11 +141,8 @@ else:
     for item in tpl_jobs:
         job_id = item["job_id"]
         report_data = item.get("report_data", {})
-
-        # 格式：模板名-报告日期-报告时间-任务id
         template_name = report_data.get("template_name", "Unknown")
 
-        # 从 mtime 提取日期和时间
         dt = datetime.fromtimestamp(item["mtime"])
         date_str = dt.strftime("%Y-%m-%d")
         time_str = dt.strftime("%H:%M:%S")
@@ -153,5 +151,33 @@ else:
 
         st.markdown(
             f"- <a href='/Metrics_Comparison?template_job_id={job_id}' target='_blank'>{display_name}</a>",
+            unsafe_allow_html=True,
+        )
+
+# 最近的Stream分析报告列表
+st.subheader("最近的Stream分析报告")
+recent_jobs = _list_bitstream_jobs(limit=5)
+if not recent_jobs:
+    st.info("暂未找到报告，请先创建任务。")
+else:
+    from datetime import datetime
+    from pathlib import Path
+
+    for item in recent_jobs:
+        job_id = item["job_id"]
+        report_data = item.get("report_data", {})
+
+        ref = report_data.get("reference", {}) or {}
+        ref_label = ref.get("label", "Unknown")
+        source_name = Path(ref_label).stem
+
+        dt = datetime.fromtimestamp(item["mtime"])
+        date_str = dt.strftime("%Y-%m-%d")
+        time_str = dt.strftime("%H:%M:%S")
+
+        display_name = f"{source_name}-{date_str}-{time_str}-{job_id}"
+
+        st.markdown(
+            f"- <a href='/Stream_Analysis?job_id={job_id}' target='_blank'>{display_name}</a>",
             unsafe_allow_html=True,
         )

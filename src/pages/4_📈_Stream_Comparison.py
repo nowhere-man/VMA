@@ -71,11 +71,11 @@ def _plot_frame_lines(
     st.plotly_chart(fig, use_container_width=True)
 
 
-st.set_page_config(page_title="码流分析", page_icon="📊", layout="wide")
+st.set_page_config(page_title="码流分析", page_icon="📈", layout="wide")
 
 job_id = _get_job_id()
 if not job_id:
-    st.markdown("<h1 style='text-align:center;'>📊 码流分析报告</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:left;'>📈 Stream 对比</h1>", unsafe_allow_html=True)
     st.subheader("全部码流分析报告")
     jobs = _list_bitstream_jobs()
     if not jobs:
