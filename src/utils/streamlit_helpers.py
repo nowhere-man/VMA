@@ -838,9 +838,6 @@ def metric_value(metrics: Dict[str, Any], name: str, field: str) -> Optional[flo
     block = metrics.get(name) or {}
     if not isinstance(block, dict):
         return None
-    summary = block.get("summary") or {}
-    if isinstance(summary, dict) and field in summary:
-        return summary.get(field)
     return block.get(field)
 
 

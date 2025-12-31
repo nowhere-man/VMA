@@ -59,7 +59,7 @@ def _build_rows(data: Dict[str, Any], side_label: str) -> tuple[List[Dict[str, A
         video = entry.get("source")
         for item in entry.get("encoded") or []:
             rc, val = _parse_point(item.get("label", ""))
-            metrics = item.get("metrics") or {}
+            metrics = item
             rows.append({
                 "Video": video,
                 "Side": side_label,

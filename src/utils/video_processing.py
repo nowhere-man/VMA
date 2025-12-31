@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 class VideoProcessingConfig:
     """视频处理配置"""
 
-    shortest_size: Optional[int] = None  # 最短边尺寸
+    shortest_size: Optional[int] = None  # 短边尺寸
     target_fps: Optional[float] = None  # 目标帧率
     upscale_to_source: bool = True  # 是否上采样到源分辨率
     scale_algorithm: str = "bicubic"  # 缩放算法
@@ -28,7 +28,7 @@ def calculate_target_resolution(
     Args:
         src_width: 源视频宽度
         src_height: 源视频高度
-        shortest_size: 最短边尺寸（可选）
+        shortest_size: 短边尺寸（可选）
 
     Returns:
         (target_width, target_height) 目标分辨率，确保为偶数
@@ -108,7 +108,7 @@ def build_encode_vf_filter(
         src_width: 源视频宽度
         src_height: 源视频高度
         src_fps: 源视频帧率
-        shortest_size: 最短边尺寸（可选）
+        shortest_size: 短边尺寸（可选）
         target_fps: 目标帧率（可选）
         scale_algorithm: 缩放算法，默认 bicubic
 

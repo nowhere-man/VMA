@@ -137,8 +137,13 @@
                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                 打开报告 →
             </a>
+            {% elif job.mode == 'metrics_analysis' %}
+            <a href="{{ reports_base_url }}/Metrics_Details?job_id={{ job.job_id }}" target="_blank"
+               class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                打开报告 →
+            </a>
             {% else %}
-            <a href="{{ reports_base_url }}?job_id={{ job.job_id }}" target="_blank"
+            <a href="{{ reports_base_url }}/Stream_Comparison?job_id={{ job.job_id }}" target="_blank"
                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                 打开报告 →
             </a>

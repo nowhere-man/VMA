@@ -172,7 +172,7 @@ def build_encode_cmd(
         src: 源视频信息
         output: 输出文件路径
         encoder_path: 自定义编码器路径（可选）
-        shortest_size: 最短边尺寸（可选，不填则使用源视频分辨率）
+        shortest_size: 短边尺寸（可选，不填则使用源视频分辨率）
         target_fps: 目标帧率（可选，不填则使用源视频帧率）
 
     Returns:

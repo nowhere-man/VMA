@@ -27,6 +27,7 @@ from src.utils.encoding import (
     finish_command as _finish_command,
     now as _now,
 )
+from src.utils.performance import PerformanceData, run_encode_with_perf
 
 
 def _env_info() -> Dict[str, str]:
@@ -47,19 +48,23 @@ def _env_info() -> Dict[str, str]:
     return info
 
 
-async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=None) -> Dict[str, Tuple[List[Path], int, int, float]]:
+async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=None) -> Tuple[Dict[str, Tuple[List[Path], int, int, float]], Dict[str, List[PerformanceData]]]:
     """
     编码源视频
 
     Returns:
-        Dict[str, Tuple[List[Path], int, int, float]]: 源文件名 -> (编码文件列表, 输出宽度, 输出高度, 输出帧率)
+        Tuple[Dict, Dict]: (outputs, perf_data)
+            - outputs: 源文件名 -> (编码文件列表, 输出宽度, 输出高度, 输出帧率)
+            - perf_data: 源文件名 -> [PerformanceData, ...]
     """
     outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
+    perf_data: Dict[str, List[PerformanceData]] = {}
     out_dir = Path(config.bitstream_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for src in sources:
         file_outputs: List[Path] = []
+        file_perfs: List[PerformanceData] = []
         out_width, out_height, out_fps = src.width, src.height, src.fps
 
         for val in config.bitrate_points or []:
@@ -68,6 +73,7 @@ async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=Non
                 matches = list(out_dir.glob(f"{stem}.*"))
                 if matches:
                     file_outputs.append(matches[0])
+                    file_perfs.append(PerformanceData())
                     continue
                 raise FileNotFoundError(f"缺少码流: {stem}")
 
@@ -85,19 +91,18 @@ async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=Non
             )
             log = _start_command(job, "encode", cmd, source_file=str(src.path), storage=job_storage)
             try:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                _, stderr = await proc.communicate()
-                if proc.returncode != 0:
+                returncode, _, stderr, perf = await run_encode_with_perf(cmd, config.encoder_type)
+                if returncode != 0:
                     raise RuntimeError(stderr.decode(errors="ignore"))
                 _finish_command(job, log, CommandStatus.COMPLETED, storage=job_storage)
+                file_perfs.append(perf)
             except Exception as exc:
                 _finish_command(job, log, CommandStatus.FAILED, storage=job_storage, error=str(exc))
                 raise
             file_outputs.append(output_path)
         outputs[src.path.stem] = (file_outputs, out_width, out_height, out_fps)
-    return outputs
+        perf_data[src.path.stem] = file_perfs
+    return outputs, perf_data
 
 
 async def _analyze_single(
@@ -110,7 +115,7 @@ async def _analyze_single(
     update_status,
 ):
     analysis_dir.mkdir(parents=True, exist_ok=True)
-    report, _summary = await build_bitstream_report(
+    report, summary = await build_bitstream_report(
         reference_path=src.path,
         encoded_paths=encoded_paths,
         analysis_dir=analysis_dir,
@@ -123,7 +128,7 @@ async def _analyze_single(
         add_command_callback=add_command,
         update_status_callback=update_status,
     )
-    return report
+    return summary
 
 
 class MetricsAnalysisRunner:
@@ -161,7 +166,7 @@ class MetricsAnalysisRunner:
             except Exception:
                 pass
 
-        encoded_outputs = await _encode(config, ordered_sources, job=job)
+        encoded_outputs, perf_data = await _encode(config, ordered_sources, job=job)
 
         analysis_root = Path(job.job_dir) / "metrics_analysis" if job else Path(template.template_dir) / "metrics_analysis"
         analysis_root.mkdir(parents=True, exist_ok=True)
@@ -183,12 +188,20 @@ class MetricsAnalysisRunner:
                 add_command=_add_cmd,
                 update_status=_update_cmd,
             )
-            entries.append(
-                {
-                    "source": src.path.name,
-                    "encoded": report.get("encoded") or [],
-                }
-            )
+            entry = {
+                "source": src.path.name,
+                "encoded": report.get("encoded") or [],
+            }
+
+            # Add performance data to encoded items
+            perf_list = perf_data.get(src.path.stem, [])
+            for i, enc_item in enumerate(entry["encoded"]):
+                if i < len(perf_list):
+                    perf_dict = perf_list[i].to_dict()
+                    if perf_dict:
+                        enc_item["performance"] = perf_dict
+
+            entries.append(entry)
 
         result = {
             "kind": "metrics_analysis_single",

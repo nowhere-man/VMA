@@ -126,7 +126,7 @@ else:
         display_name = f"{template_name}-{date_str}-{time_str}-{job_id}"
 
         st.markdown(
-            f"- <a href='/Metrics_Analysis?job_id={job_id}' target='_blank'>{display_name}</a>",
+            f"- <a href='/Metrics_Details?job_id={job_id}' target='_blank'>{display_name}</a>",
             unsafe_allow_html=True,
         )
 
@@ -178,6 +178,6 @@ else:
         display_name = f"{source_name}-{date_str}-{time_str}-{job_id}"
 
         st.markdown(
-            f"- <a href='/Stream_Analysis?job_id={job_id}' target='_blank'>{display_name}</a>",
+            f"- <a href='/Stream_Comparison?job_id={job_id}' target='_blank'>{display_name}</a>",
             unsafe_allow_html=True,
         )

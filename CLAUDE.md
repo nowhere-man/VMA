@@ -28,6 +28,7 @@ VMA/
 │   ├── utils/
 │   │   ├── encoding.py         # 编码工具（构建编码命令）
 │   │   ├── video_processing.py # 视频处理工具（分辨率/帧率转换）
+│   │   ├── performance.py      # 性能监控工具（CPU、FPS、编码时间）
 │   │   ├── metrics.py          # 指标解析工具
 │   │   ├── bd_rate.py          # BD-Rate 计算
 │   │   └── streamlit_*.py      # Streamlit 辅助工具
@@ -87,13 +88,18 @@ VMA 由两个服务组成：
    - 视频处理参数（shortest_size、target_fps、upscale_to_source）
 2. 创建任务执行模板
 3. 系统自动编码所有源视频的所有码率点
-4. 计算每个编码视频的质量指标
+4. 计算每个编码视频的质量指标和性能数据
 
 **任务模式**：`JobMode.METRICS_ANALYSIS`
 
 **处理器**：`src/services/metrics_analysis_runner.py`
 
 **模板类型**：`TemplateType.METRICS_ANALYSIS`
+
+**报告内容**：
+- 每个源视频的质量指标（PSNR/SSIM/VMAF）
+- 编码性能数据（FPS、CPU 占用、编码时间）
+- 码率分析
 
 ### 3. Metrics Comparison（指标对比）
 
@@ -146,7 +152,7 @@ class TemplateSideConfig:
     rate_control: RateControl  # crf/abr
     bitrate_points: List[float]  # 码率点位
     bitstream_dir: str       # 码流输出目录
-    shortest_size: int       # 最短边尺寸（可选）
+    shortest_size: int       # 短边尺寸（可选）
     target_fps: float        # 目标帧率（可选）
     upscale_to_source: bool  # Metrics 策略（默认 True）
     concurrency: int         # 并发数量
@@ -371,8 +377,9 @@ streamlit run src/1_🏠_Home.py --server.port 8079
 |------|------|
 | `src/services/ffmpeg.py` | FFmpeg 封装，包含编码、指标计算、管道打分 |
 | `src/services/bitstream_analysis.py` | 码流分析核心逻辑 |
-| `src/services/template_runner.py` | Metrics Comparison 执行器，包含性能监控 |
-| `src/services/metrics_analysis_runner.py` | Metrics Analysis 执行器 |
+| `src/services/template_runner.py` | Metrics Comparison 执行器，使用共享性能监控模块 |
+| `src/services/metrics_analysis_runner.py` | Metrics Analysis 执行器，包含性能数据收集 |
+| `src/utils/performance.py` | 性能监控模块（CPU、FPS、编码时间采集） |
 | `src/utils/video_processing.py` | 分辨率/帧率计算、滤镜构建 |
 | `src/utils/encoding.py` | 编码命令构建 |
 | `src/utils/bd_rate.py` | BD-Rate 计算算法 |
