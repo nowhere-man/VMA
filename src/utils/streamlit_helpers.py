@@ -36,7 +36,7 @@ def list_jobs(
     列出包含指定报告文件的任务
 
     Args:
-        report_subpath: 报告文件相对于任务目录的路径，如 "metrics_analysis/report_data.json"
+        report_subpath: 报告文件相对于任务目录的路径，如 "metrics_analysis/metrics_analysis.json"
         limit: 返回的最大任务数
         check_status: 是否检查任务状态（仅返回已完成的任务）
 
@@ -811,7 +811,7 @@ def format_env_info(env: Dict[str, Any]) -> str:
 
 def list_metrics_jobs(limit: int = 100) -> List[Dict[str, Any]]:
     """列出 Metrics Analysis 任务"""
-    return list_jobs("metrics_analysis/analyse_data.json", limit=limit, check_status=True)
+    return list_jobs("metrics_analysis/metrics_analysis.json", limit=limit, check_status=True)
 
 
 def format_job_label(job: Dict[str, Any]) -> str:
@@ -830,7 +830,7 @@ def format_job_label(job: Dict[str, Any]) -> str:
 
 def load_analyse(job_id: str) -> Dict[str, Any]:
     """加载 Metrics Analysis 任务数据"""
-    return load_json_report(job_id, "metrics_analysis/analyse_data.json")
+    return load_json_report(job_id, "metrics_analysis/metrics_analysis.json")
 
 
 def metric_value(metrics: Dict[str, Any], name: str, field: str) -> Optional[float]:

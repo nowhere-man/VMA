@@ -31,7 +31,7 @@ from src.utils.streamlit_helpers import (
 
 def _list_bitstream_jobs(limit: int = 50) -> List[Dict[str, Any]]:
     """列出包含码流分析报告的任务（按报告文件修改时间倒序）。"""
-    return list_jobs("bitstream_analysis/report_data.json", limit=limit)
+    return list_jobs("analysis/stream_analysis.json", limit=limit)
 
 
 def _get_job_id() -> Optional[str]:
@@ -39,7 +39,7 @@ def _get_job_id() -> Optional[str]:
 
 
 def _load_report(job_id: str) -> Dict[str, Any]:
-    return load_json_report(job_id, "bitstream_analysis/report_data.json")
+    return load_json_report(job_id, "analysis/stream_analysis.json")
 
 
 def _plot_frame_lines(

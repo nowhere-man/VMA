@@ -14,7 +14,7 @@ import psutil
 from src.models import CommandLog, CommandStatus
 from src.models.template import EncoderType, EncodingTemplate, TemplateSideConfig, TemplateType
 from src.services.storage import job_storage
-from src.services.bitstream_analysis import build_bitstream_report
+from src.services.stream_analysis_runner import build_bitstream_report
 from src.services.ffmpeg import ffmpeg_service
 from src.utils.encoding import (
     SourceInfo,
@@ -213,7 +213,7 @@ class MetricsAnalysisRunner:
             "environment": _env_info(),
         }
 
-        data_path = analysis_root / "analyse_data.json"
+        data_path = analysis_root / "metrics_analysis.json"
         try:
             with open(data_path, "w", encoding="utf-8") as f:
                 json.dump(result, f, ensure_ascii=False)

@@ -19,7 +19,7 @@ import numpy as np
 from src.models import CommandLog, CommandStatus
 from src.models.template import EncoderType, EncodingTemplate, TemplateSideConfig
 from src.services import job_storage
-from src.services.bitstream_analysis import build_bitstream_report
+from src.services.stream_analysis_runner import build_bitstream_report
 from src.services.ffmpeg import ffmpeg_service
 from src.utils.bd_rate import bd_rate as _bd_rate, bd_metrics as _bd_metrics
 from src.utils.encoding import (
@@ -508,15 +508,15 @@ async def run_template(
     else:
         report_dir = template.template_dir / "metrics_analysis"
     report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / "report_data.json"
+    report_path = report_dir / "metrics_comparison.json"
     try:
         with open(report_path, "w", encoding="utf-8") as f:
             # 使用紧凑格式减小文件体积（无缩进，无多余空格）
             json.dump(result, f, ensure_ascii=False, separators=(",", ":"))
         if job:
-            result["report_data_file"] = str(report_path.relative_to(job.job_dir))
+            result["data_file"] = str(report_path.relative_to(job.job_dir))
         else:
-            result["report_data_file"] = str(report_path)
+            result["data_file"] = str(report_path)
     except Exception:
         pass
 

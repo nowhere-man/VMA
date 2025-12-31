@@ -23,18 +23,18 @@ st.set_page_config(
 
 
 def _list_bitstream_jobs(limit: int = 20) -> List[Dict]:
-    """列出最近的Stream分析报告 job_id 列表（按 report_data.json 修改时间倒序）。"""
-    return list_jobs("bitstream_analysis/report_data.json", limit=limit)
+    """列出最近的Stream分析报告 job_id 列表（按 stream_analysis.json 修改时间倒序）。"""
+    return list_jobs("analysis/stream_analysis.json", limit=limit)
 
 
 def _list_metrics_analysis_jobs(limit: int = 20) -> List[Dict]:
     """列出📊 Metrics job_id 列表。"""
-    return list_jobs("metrics_analysis/analyse_data.json", limit=limit, check_status=True)
+    return list_jobs("metrics_analysis/metrics_analysis.json", limit=limit, check_status=True)
 
 
 def _list_template_jobs(limit: int = 20) -> List[Dict]:
     """列出最近的模板指标报告 job_id 列表。"""
-    return list_jobs("metrics_analysis/report_data.json", limit=limit)
+    return list_jobs("metrics_analysis/metrics_comparison.json", limit=limit)
 
 
 def _set_job_query_param(job_id: str) -> None:

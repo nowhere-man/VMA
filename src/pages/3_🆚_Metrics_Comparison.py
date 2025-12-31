@@ -158,11 +158,11 @@ def _get_report_info(data: Dict[str, Any]) -> Dict[str, Any]:
 # ========== Metrics Comparison 模板报告相关函数 ==========
 
 def _list_template_jobs(limit: int = 50) -> List[Dict[str, Any]]:
-    return list_jobs("metrics_analysis/report_data.json", limit=limit)
+    return list_jobs("metrics_analysis/metrics_comparison.json", limit=limit)
 
 
 def _load_template_report(job_id: str) -> Dict[str, Any]:
-    return load_json_report(job_id, "metrics_analysis/report_data.json")
+    return load_json_report(job_id, "metrics_analysis/metrics_comparison.json")
 
 
 def _collect_points(entries: List[Dict[str, Any]], side_key: str) -> List[float]:

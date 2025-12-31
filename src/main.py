@@ -18,7 +18,7 @@ from src.api import (
     templates_router,
 )
 from src.config import settings
-from src.services import task_processor
+from src.services import stream_analysis_runner
 
 
 # 应用生命周期管理
@@ -26,10 +26,10 @@ from src.services import task_processor
 async def lifespan(app: FastAPI):
     """应用生命周期管理器"""
     # 启动时：启动后台任务处理器
-    task = asyncio.create_task(task_processor.start_background_processor())
+    task = asyncio.create_task(stream_analysis_runner.start_background_processor())
     yield
     # 关闭时：停止后台任务处理器
-    task_processor.stop_background_processor()
+    stream_analysis_runner.stop_background_processor()
     await task
 
 

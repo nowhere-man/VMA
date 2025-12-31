@@ -126,7 +126,7 @@
 	    </div>
 
     <!-- 码流分析报告（Streamlit） -->
-    {% if job.status == 'completed' and job.execution_result and job.execution_result.report_data_file %}
+    {% if job.status == 'completed' and job.execution_result and job.execution_result.data_file %}
     <div class="bg-white rounded-lg shadow-sm p-6">
         <div class="flex items-center justify-between">
             <div>
@@ -149,7 +149,7 @@
             </a>
             {% endif %}
         </div>
-        <p class="mt-3 text-xs text-gray-500">数据文件：{{ job.execution_result.report_data_file }}</p>
+        <p class="mt-3 text-xs text-gray-500">数据文件：{{ job.execution_result.data_file }}</p>
     </div>
     {% endif %}
 

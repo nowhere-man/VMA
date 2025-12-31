@@ -1,27 +1,30 @@
 """
-码流分析服务
+Stream Analysis 后台处理器
 
-Ref + 多个 Encoded 的质量指标与码率分析：
-- 使用管道方式计算指标（不保存临时 YUV 文件）
-- PSNR/SSIM 输出每帧 y/u/v/avg
-- VMAF 同时计算 vmaf 与 vmaf_neg（v0.6.1 / v0.6.1neg）
-- 码率分析输出平均码率、每帧大小与帧类型
+处理 Stream Analysis 任务的执行、指标计算和报告生成
 """
-
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from nanoid import generate
+
 from src.config import settings
-from src.models import Job
+from src.models import Job, JobMode, JobStatus
 from src.services.ffmpeg import ffmpeg_service
 from src.utils.metrics import parse_psnr_log, parse_ssim_log, parse_vmaf_log
 from src.utils.encoding import parse_yuv_name
 
 logger = logging.getLogger(__name__)
+
+
+def _now_tz():
+    return datetime.now().astimezone()
 
 
 def _is_yuv(path: Path) -> bool:
@@ -62,6 +65,39 @@ async def _infer_input_format(path: Path) -> Optional[str]:
     raise RuntimeError(f"无法识别码流格式（仅支持 h264/h265 或容器格式）: {path.name}")
 
 
+def _make_command_callbacks(job, job_storage):
+    from src.models import CommandLog, CommandStatus
+
+    def add_command_log(command_type: str, command: str, source_file: str = None) -> str:
+        command_id = generate(size=8)
+        log = CommandLog(
+            command_id=command_id,
+            command_type=command_type,
+            command=command,
+            status=CommandStatus.PENDING,
+            source_file=source_file,
+        )
+        job.metadata.command_logs.append(log)
+        job_storage.update_job(job)
+        return command_id
+
+    def update_command_status(command_id: str, status: str, error: str = None):
+        for cmd_log in job.metadata.command_logs:
+            if cmd_log.command_id == command_id:
+                cmd_log.status = CommandStatus(status)
+                now = _now_tz()
+                if status == "running":
+                    cmd_log.started_at = now
+                elif status in ("completed", "failed"):
+                    cmd_log.completed_at = now
+                if error:
+                    cmd_log.error_message = error
+                break
+        job_storage.update_job(job)
+
+    return add_command_log, update_command_status
+
+
 async def build_bitstream_report(
     reference_path: Path,
     encoded_paths: List[Path],
@@ -76,19 +112,22 @@ async def build_bitstream_report(
     update_status_callback=None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    通用码流分析逻辑（可供模板任务与码流分析任务复用）
+    通用码流分析逻辑（供 Stream Analysis 任务使用）
 
     使用管道方式计算指标，不保存临时 YUV 文件。
 
     Args:
         reference_path: 参考视频路径
         encoded_paths: 已编码视频路径列表
-        analysis_dir: 输出目录（会生成日志及 report_data.json）
+        analysis_dir: 输出目录（会生成日志及 stream_analysis.json）
         raw_width/raw_height/raw_fps: 参考为 YUV 时必填
         raw_pix_fmt: 参考 YUV 像素格式
         upscale_to_source: Metrics策略，True=码流上采样到源分辨率，False=源视频下采样到码流分辨率
         target_fps: 模板指定的目标帧率（优先使用）
         add_command_callback/update_status_callback: 可选的命令日志回调
+
+    Returns:
+        Tuple[report_data, summary]: 完整报告数据（含逐帧）和轻量摘要
     """
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
@@ -306,7 +345,7 @@ async def analyze_bitstream_job(
     if not ref_input or not ref_input.exists():
         raise FileNotFoundError("参考视频不存在")
 
-    analysis_dir = job.job_dir / "bitstream_analysis"
+    analysis_dir = job.job_dir / "analysis"
     encoded_inputs = [job.job_dir / v.filename for v in job.metadata.encoded_videos]
     if not encoded_inputs:
         raise ValueError("未提供任何编码视频")
@@ -330,7 +369,8 @@ async def analyze_bitstream_job(
         update_status_callback=update_status_callback,
     )
 
-    summary["report_data_file"] = str((analysis_dir / "report_data.json").relative_to(job.job_dir))
+    # 修改 JSON 文件名：report_data.json → stream_analysis.json
+    summary["data_file"] = str((analysis_dir / "stream_analysis.json").relative_to(job.job_dir))
     report_data["job_id"] = job.job_id
 
     # 清理上传的源文件（仅删除任务目录内的副本，保留外部路径）
@@ -368,3 +408,123 @@ async def analyze_bitstream_job(
         _safe_unlink(item)
 
     return report_data, summary
+
+
+class StreamAnalysisRunner:
+    """Stream Analysis 任务处理器"""
+
+    def __init__(self) -> None:
+        """初始化任务处理器"""
+        self.processing = False
+        self.current_job: Optional[str] = None
+        self.supported_modes = {JobMode.BITSTREAM_ANALYSIS}
+
+    async def process_job(self, job_id: str) -> None:
+        """
+        处理单个任务
+
+        Args:
+            job_id: 任务 ID
+        """
+        from .storage import job_storage
+
+        job = job_storage.get_job(job_id)
+        if not job:
+            logger.error(f"Job {job_id} not found")
+            return
+
+        # 仅处理该处理器支持的模式
+        if job.metadata.mode not in self.supported_modes:
+            logger.info(f"Skipping job {job_id} (unsupported mode: {job.metadata.mode})")
+            return
+
+        try:
+            # 更新状态为处理中
+            job.metadata.status = JobStatus.PROCESSING
+            job.metadata.updated_at = _now_tz()
+            job_storage.update_job(job)
+
+            logger.info(f"Processing job {job_id} (mode: {job.metadata.mode})")
+
+            # 处理 Stream Analysis 任务
+            if job.metadata.mode == JobMode.BITSTREAM_ANALYSIS:
+                await self._process_stream_analysis(job)
+
+            # 更新状态为已完成
+            job.metadata.status = JobStatus.COMPLETED
+            job.metadata.completed_at = _now_tz()
+            job.metadata.updated_at = _now_tz()
+            job_storage.update_job(job)
+
+            logger.info(f"Job {job_id} completed successfully")
+
+        except Exception as e:
+            # 更新状态为失败
+            job.metadata.status = JobStatus.FAILED
+            job.metadata.error_message = str(e)
+            job.metadata.updated_at = _now_tz()
+            job_storage.update_job(job)
+
+            logger.error(f"Job {job_id} failed: {str(e)}")
+
+    async def _process_stream_analysis(self, job: Job) -> None:
+        """处理 Stream Analysis 任务（Ref + 多个 Encoded）"""
+        from .storage import job_storage
+
+        add_command_log, update_command_status = _make_command_callbacks(job, job_storage)
+
+        report_data, summary = await analyze_bitstream_job(
+            job,
+            add_command_callback=add_command_log,
+            update_status_callback=update_command_status,
+        )
+
+        # 写入报告数据文件（供 Streamlit 使用）
+        report_rel_path = summary.get("data_file")
+        if not report_rel_path:
+            raise RuntimeError("Stream analysis missing data_file")
+
+        report_path = job.job_dir / report_rel_path
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, ensure_ascii=False)
+
+        job.metadata.execution_result = summary
+        job_storage.update_job(job)
+
+    async def start_background_processor(self) -> None:
+        """启动后台处理器（轮询待处理任务）"""
+        from .storage import job_storage
+
+        self.processing = True
+        logger.info("Background Stream Analysis processor started")
+
+        while self.processing:
+            try:
+                # 查找待处理的任务
+                pending_jobs = job_storage.list_jobs(status=JobStatus.PENDING, limit=20)
+                job_to_process = next(
+                    (j for j in pending_jobs if j.metadata.mode in self.supported_modes),
+                    None,
+                )
+
+                if job_to_process:
+                    self.current_job = job_to_process.job_id
+                    await self.process_job(job_to_process.job_id)
+                    self.current_job = None
+                else:
+                    # 没有待处理任务，等待一会儿
+                    await asyncio.sleep(5)
+
+            except Exception as e:
+                logger.error(f"Error in background processor: {str(e)}")
+                await asyncio.sleep(5)
+
+    def stop_background_processor(self) -> None:
+        """停止后台处理器"""
+        self.processing = False
+        logger.info("Background Stream Analysis processor stopped")
+
+
+# 全局单例
+stream_analysis_runner = StreamAnalysisRunner()

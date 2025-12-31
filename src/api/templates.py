@@ -16,7 +16,7 @@ from src.schemas.templates import (
     ValidateTemplateResponse,
 )
 from src.models import JobMetadata, JobMode, JobStatus
-from src.services.template_runner import template_runner
+from src.services.metrics_comparison_runner import template_runner
 from src.services.storage import job_storage
 from src.services.template_storage import template_storage
 from src.models.template import TemplateSideConfig

@@ -1,387 +1,555 @@
-# VMA - Video Metrics Analyzer
+# VMA/VMR - Video Metrics Analyzer & Reporter
 
-## 项目架构
 
+
+---
+
+# Part 1: VMA (Backend) - Video Metrics Analyzer
+
+## 核心架构
+
+### 双服务设计
 ```
-VMA/
-├── src/
-│   ├── main.py                 # FastAPI VMA 应用入口
-│   ├── config.py               # 配置管理（从 config.yml 加载）
-│   ├── 1_🏠_Home.py        # Streamlit VMR 报告首页
-│   ├── api/                    # FastAPI 路由
-│   │   ├── jobs.py             # 任务 API（创建/查询/删除任务）
-│   │   ├── templates.py        # Metrics Comparison 模板 API
-│   │   ├── metrics_analysis.py # Metrics Analysis 模板 API
-│   │   └── pages.py            # 页面路由（模板管理、任务详情）
-│   ├── models/
-│   │   ├── job.py              # 任务数据模型（Job, JobMetadata, JobStatus）
-│   │   └── template.py         # 模板数据模型（EncodingTemplate, TemplateSideConfig）
-│   ├── schemas/                # Pydantic 请求/响应模型
-│   ├── services/
-│   │   ├── storage.py          # 任务存储服务（JobStorage）
-│   │   ├── template_storage.py # 模板存储服务
-│   │   ├── processor.py        # 后台任务处理器（Stream Analysis）
-│   │   ├── ffmpeg.py           # FFmpeg 服务（编码、指标计算）
-│   │   ├── bitstream_analysis.py # 码流分析服务
-│   │   ├── template_runner.py  # Metrics Comparison 执行器
-│   │   └── metrics_analysis_runner.py # Metrics Analysis 执行器
-│   ├── utils/
-│   │   ├── encoding.py         # 编码工具（构建编码命令）
-│   │   ├── video_processing.py # 视频处理工具（分辨率/帧率转换）
-│   │   ├── performance.py      # 性能监控工具（CPU、FPS、编码时间）
-│   │   ├── metrics.py          # 指标解析工具
-│   │   ├── bd_rate.py          # BD-Rate 计算
-│   │   └── streamlit_*.py      # Streamlit 辅助工具
-│   ├── pages/                  # Streamlit 报告页面
-│   │   ├── 2_📊_Metrics_Details.py
-│   │   ├── 3_🆚_Metrics_Comparison.py
-│   │   └── 4_📈_Stream_Comparison.py
-│   └── templates/              # Jinja2 HTML 模板（FastAPI Web UI）
-├── config.yml                  # 配置文件
-└── run.sh                      # 启动脚本
+FastAPI (8078)          Streamlit (8079)
+    ↓                         ↓
+任务管理/执行              报告可视化
+    ↓                         ↓
+生成 JSON 数据           读取 JSON + 渲染
 ```
 
-## 双服务架构
+### 三大功能模块
 
-VMA 由两个服务组成：
+| 模块 | JobMode | 处理器 | 输出文件 | 用途 |
+|------|---------|--------|----------|------|
+| Stream Analysis | `bitstream_analysis` | `stream_analysis_runner.py` | `stream_analysis.json` | 分析已有编码视频的质量 |
+| Metrics Analysis | `metrics_analysis` | `metrics_analysis_runner.py` | `metrics_analysis.json` | 批量编码源视频+质量分析 |
+| Metrics Comparison | `metrics_comparison` | `metrics_comparison_runner.py` | `metrics_comparison.json` | Anchor vs Test 对比分析 |
 
-1. **FastAPI VMA 服务** (默认端口 8078)
-   - 提供 REST API 和 Web UI
-   - 管理任务和模板
-   - 后台任务处理器
+---
 
-2. **Streamlit VMR 服务** (默认端口 8079)
-   - 报告可视化系统
-   - 交互式图表展示
-   - 支持 PSNR/SSIM/VMAF 曲线、BD-Rate 等
+## 关键数据结构（重要！）
 
-## 三大功能模块
+### ⚠️ 数据结构统一性要求
 
-### 1. Stream Analysis（码流分析）
+**用户明确要求**：所有 Metrics 类型的报告必须使用相同的数据结构，便于代码复用。
 
-**用途**：分析单个或多个编码视频相对于参考视频的质量指标。
+#### Stream Analysis 数据结构（有 metrics 包装器）
 
-**流程**：
-1. 用户上传参考视频（YUV、裸流或容器格式）和编码视频
-2. 系统自动检测视频格式（h264/h265/容器）
-3. 计算 PSNR、SSIM、VMAF及码率分析。
-4. 生成分析报告。
+```json
+{
+  "kind": "bitstream_analysis",
+  "reference": {...},
+  "encoded": [
+    {
+      "label": "encoded_crf23.h265",
+      "width": 1280, "height": 720, "fps": 30,
+      "metrics": {                              // ← 注意这个包装器
+        "psnr": {
+          "summary": {"psnr_avg": 42.5, ...},  // ← 注意 summary 子键
+          "frames": [...]
+        },
+        "ssim": {
+          "summary": {"ssim_avg": 0.98, ...},
+          "frames": [...]
+        },
+        "vmaf": {
+          "summary": {"vmaf_mean": 95.2, ...},
+          "frames": [...]
+        }
+      },
+      "bitrate": {"avg_bitrate_bps": 2500000, ...}
+    }
+  ]
+}
+```
 
-**任务模式**：`JobMode.BITSTREAM_ANALYSIS`
+**解析方式**（在 `4_📈_Stream_Comparison.py`）:
+```python
+metrics = item.get("metrics", {}) or {}
+psnr = (metrics.get("psnr", {}) or {}).get("summary", {}) or {}
+value = psnr.get("psnr_avg")
+```
 
-**处理器**：`src/services/processor.py` → `bitstream_analysis.py`
+#### Metrics 数据结构（无 metrics 包装器！）
 
-**报告内容**：
-- 参考视频信息（分辨率、帧率、帧数）
-- 每个编码视频的指标（PSNR/SSIM/VMAF 均值和逐帧数据）
-- 码率分析（平均码率、帧类型分布、帧大小）
+```json
+{
+  "kind": "metrics_analysis_single",           // Metrics Analysis
+  // 或 "template_metrics"                       // Metrics Comparison
+  "entries": [
+    {
+      "source": "video1.mp4",
+      "encoded": [
+        {
+          "label": "video1_crf23.h264",
+          "avg_bitrate_bps": 2500000,
+          "psnr": {                              // ← 直接在 encoded 里，无包装器！
+            "psnr_avg": 42.5,
+            "psnr_y": 40.2,
+            "psnr_u": 44.1,
+            "psnr_v": 43.8
+          },
+          "ssim": {                              // ← 直接在 encoded 里
+            "ssim_avg": 0.98,
+            "ssim_y": 0.97,
+            ...
+          },
+          "vmaf": {                              // ← 直接在 encoded 里
+            "vmaf_mean": 95.2,
+            "vmaf_neg_mean": 94.8
+          },
+          "performance": {                       // ← 性能数据直接在 encoded 里
+            "encoding_fps": 120.5,
+            "cpu_avg_percent": 45.2,
+            ...
+          }
+        }
+      ]
+    }
+  ]
+}
+```
 
-### 2. Metrics Analysis（指标分析）
+**解析方式**（在 `2_📊_Metrics_Details.py` 和 `3_🆚_Metrics_Comparison.py`）:
+```python
+metrics = item                                 # ← 注意：直接是 item，不是 item["metrics"]
+value = metrics.get("psnr", {}).get("psnr_avg")
+```
 
-**用途**：使用模板配置批量编码源视频并计算质量指标。
+### ⚠️ 易错点：数据结构不匹配
 
-**流程**：
-1. 创建 Metrics Analysis 模板，配置：
-   - 源视频目录
-   - 编码器类型和参数
-   - 码率控制（CRF/ABR）和码率点位
-   - 视频处理参数（shortest_size、target_fps、upscale_to_source）
-2. 创建任务执行模板
-3. 系统自动编码所有源视频的所有码率点
-4. 计算每个编码视频的质量指标和性能数据
+**错误案例**：
+```python
+# ❌ 错误：Metrics 数据结构中这样解析会失败
+metrics = item.get("metrics") or {}
+value = metrics.get("psnr", {}).get("psnr_avg")  # 返回 None
+```
 
-**任务模式**：`JobMode.METRICS_ANALYSIS`
+**正确做法**：
+```python
+# ✅ 正确：Metrics 数据结构直接使用 item
+metrics = item
+value = metrics.get("psnr", {}).get("psnr_avg")
+```
 
-**处理器**：`src/services/metrics_analysis_runner.py`
+**为什么会混淆？**
+- `build_bitstream_report()` 返回两个值：`(report_data, summary)`
+- `report_data`（第一个返回值）：有 `metrics` 包装器 → 用于 Stream Analysis
+- `summary`（第二个返回值）：**无** `metrics` 包装器 → 用于 Metrics Analysis/Comparison
 
-**模板类型**：`TemplateType.METRICS_ANALYSIS`
+**代码位置**：`src/services/stream_analysis_runner.py:270-290`
 
-**报告内容**：
-- 每个源视频的质量指标（PSNR/SSIM/VMAF）
-- 编码性能数据（FPS、CPU 占用、编码时间）
-- 码率分析
+---
 
-### 3. Metrics Comparison（指标对比）
+## 性能数据采集
 
-**用途**：对比两组编码配置（Anchor vs Test）的质量指标，计算 BD-Rate。
+### 设计原则
 
-**流程**：
-1. 创建 Metrics Comparison 模板，配置 Anchor 和 Test 两侧：
-   - 共用源视频目录
-   - 各自的编码器配置和码流目录
-   - 码率点位（两侧必须一致）
-2. 创建任务执行模板
-3. 系统编码两侧的所有视频
-4. 计算质量指标并生成 BD-Rate 对比
+**用户要求**：复用现有代码，避免重复实现。
 
-**任务模式**：`JobMode.METRICS_COMPARISON`
+### 核心模块
 
-**处理器**：`src/services/template_runner.py`
+**文件**：`src/utils/performance.py`
 
-**模板类型**：`TemplateType.METRICS_COMPARISON`
+**数据结构**：
+```python
+@dataclass
+class PerformanceData:
+    encoding_fps: Optional[float] = None
+    total_encoding_time_s: Optional[float] = None
+    total_frames: Optional[int] = None
+    cpu_avg_percent: Optional[float] = None
+    cpu_max_percent: Optional[float] = None
+    cpu_samples: List[float] = field(default_factory=list)
+```
 
-**报告内容**：
-- Anchor 和 Test 的编码配置
-- 每个源视频的指标对比
-- BD-Rate（PSNR/SSIM/VMAF/VMAF-NEG）
-- 编码性能数据（FPS、CPU 占用）
-- 环境信息（OS、CPU、内存）
+**使用方式**：
+```python
+from src.utils.performance import run_encode_with_perf
 
-## 数据模型
+returncode, stdout, stderr, perf = await run_encode_with_perf(cmd, encoder_type)
+# perf: PerformanceData 对象
+perf_dict = perf.to_dict()  # 转换为字典，过滤 None 值
+```
 
-### Job（任务）
+### ⚠️ 易错点：复用已有码流时的性能数据
+
+**场景**：Anchor 码流已存在，跳过编码
+
+**错误做法**：
+```python
+# ❌ 错误：添加空的 PerformanceData()
+if skip_encode and out_path.exists():
+    file_outputs.append(out_path)
+    file_perfs.append(PerformanceData())  # 全是 None，但仍是对象
+```
+
+**问题**：
+```python
+# 添加到 encoded 时
+if perf_dict:  # ← 空对象的 to_dict() 返回 {}，truthy 为 True
+    enc_item["performance"] = {}  # ← 添加了空的 performance 字段
+```
+
+**正确做法**：
+```python
+# ✅ 正确：添加 None 标记无数据
+if skip_encode and out_path.exists():
+    file_outputs.append(out_path)
+    file_perfs.append(None)  # ← 用 None 标记
+```
 
 ```python
-class JobMetadata:
-    job_id: str              # 任务 ID（nanoid 12字符）
-    status: JobStatus        # pending/processing/completed/failed
-    mode: JobMode            # bitstream_analysis/metrics_analysis/metrics_comparison
-    template_id: str         # 关联的模板 ID
-    command_logs: List[CommandLog]  # 命令执行记录
-    execution_result: dict   # 执行结果
+# 添加到 encoded 时
+perf = perf_list[i]
+if perf is not None:  # ← 检查 None
+    enc_item["performance"] = perf.to_dict()
 ```
 
-### Template（模板）
+**代码位置**：
+- `src/services/template_runner.py:203-211`（Metrics Comparison）
+- `src/services/metrics_analysis_runner.py:72-77`（Metrics Analysis）
 
-```python
-class TemplateSideConfig:
-    skip_encode: bool        # 跳过编码（使用已有码流）
-    source_dir: str          # 源视频目录
-    encoder_type: EncoderType  # ffmpeg/x264/x265/vvenc
-    encoder_params: str      # 编码参数
-    rate_control: RateControl  # crf/abr
-    bitrate_points: List[float]  # 码率点位
-    bitstream_dir: str       # 码流输出目录
-    shortest_size: int       # 短边尺寸（可选）
-    target_fps: float        # 目标帧率（可选）
-    upscale_to_source: bool  # Metrics 策略（默认 True）
-    concurrency: int         # 并发数量
-
-class EncodingTemplateMetadata:
-    template_id: str
-    name: str
-    template_type: TemplateType  # metrics_analysis/metrics_comparison
-    anchor: TemplateSideConfig
-    test: TemplateSideConfig     # 仅 metrics_comparison
-```
+---
 
 ## 视频处理逻辑
 
-### 编码阶段
+### 编码阶段：分辨率和帧率转换
 
-使用 `-vf` 滤镜进行帧率和分辨率转换：
+**命令构建**：`src/utils/encoding.py:build_encode_cmd()`
 
+**FFmpeg 滤镜**：
 ```bash
-ffmpeg -i input.mp4 -vf "fps=30,scale=1280:720:flags=bicubic" -c:v libx265 -crf 23 output.h265
+ffmpeg -i input.mp4 \
+  -vf "fps=30,scale=1280:720:flags=bicubic" \
+  -c:v libx264 -crf 23 output.h264
 ```
 
-- `shortest_size`：根据最短边计算目标分辨率（保持宽高比）
-- `target_fps`：目标帧率转换
+**参数说明**：
+- `shortest_size`: 根据最短边计算分辨率（保持宽高比）
+- `target_fps`: 目标帧率
 - 缩放算法：bicubic
 
-### 打分阶段（管道方式）
+### 打分阶段：管道方式（不保存临时 YUV）
 
-不保存临时 YUV 文件，通过 shell 管道连接多个 ffmpeg 进程：
+**命令构建**：`src/services/ffmpeg.py:calculate_metrics_pipeline()`
 
+**Shell 管道**：
 ```bash
-(ffmpeg -i encoded.h265 -vf "scale=1920:1080,format=yuv420p" -f rawvideo -) | \
+(ffmpeg -i encoded.h264 -vf "scale=1920:1080,format=yuv420p" -f rawvideo -) | \
 (ffmpeg -i source.mp4 -vf "fps=30,format=yuv420p" -f rawvideo -) | \
-ffmpeg -f rawvideo -s 1920x1080 -r 30 -i pipe:3 -f rawvideo -s 1920x1080 -r 30 -i pipe:4 \
-  -filter_complex "libvmaf=..." -f null -
+ffmpeg -f rawvideo -s 1920x1080 -r 30 -i pipe:3 \
+       -f rawvideo -s 1920x1080 -r 30 -i pipe:4 \
+       -filter_complex "libvmaf=..." -f null -
 ```
 
 **Metrics 策略**：
 - `upscale_to_source=True`：码流上采样到源分辨率（默认）
 - `upscale_to_source=False`：源视频下采样到码流分辨率
 
-## Streamlit VMR 报告系统
+### 指标解析
 
-### 首页 (1_🏠_Home.py)
+**文件**：`src/utils/metrics.py`
 
-- 显示最近的Stream分析报告列表
-- 显示最近的 Metrics 对比报告列表
-- 支持从 FastAPI 跳转（通过 query params）
+**关键函数**：
+```python
+# 解析 summary（用于 Metrics 类型）
+parse_psnr_summary(log_content) → {"psnr_avg": ..., "psnr_y": ...}
+parse_ssim_summary(log_content) → {"ssim_avg": ..., "ssim_y": ...}
+parse_vmaf_summary(log_content) → {"vmaf_mean": ..., "vmaf_neg_mean": ...}
 
-### Metrics Analysis 页面 (2_📊_Metrics_Details.py)
-
-**重要要求**：Metrics Analysis 页面选择两个 Metrics Analysis 任务（Anchor 和 Test）后生成的对比报告，必须与 Metrics Comparison 页面的报告结构完全一致。
-
-**功能**：
-- 选择两个已完成的 Metrics Analysis 任务进行动态对比
-- 实时生成 Anchor vs Test 对比报告（不落盘）
-
-**报告结构**（与 Metrics Comparison 页面完全一致）：
-1. **Information** - 编码器配置信息对比
-2. **Overall** - 整体指标汇总（包含 BD-Rate 汇总）
-3. **Metrics** - 质量指标详细对比
-   - **RD Curves** - Rate-Distortion 曲线（交互式 Plotly 图表）
-   - **Delta** - 指标差异对比（柱状图 + 表格）
-   - **Details** - 详细指标数据表格
-4. **BD-Rate** - BD-Rate 分析（需要至少 4 个码率点）
-   - 汇总表格（带颜色标注）
-   - **BD-Rate PSNR** - 独立柱状图
-   - **BD-Rate SSIM** - 独立柱状图
-   - **BD-Rate VMAF** - 独立柱状图
-   - **BD-Rate VMAF-NEG** - 独立柱状图
-5. **BD-Metrics** - BD-Metrics 分析
-   - 汇总表格（带颜色标注）
-   - **BD PSNR** - 独立柱状图
-   - **BD SSIM** - 独立柱状图
-   - **BD VMAF** - 独立柱状图
-   - **BD VMAF-NEG** - 独立柱状图
-6. **Performance** - 编码性能对比
-   - **Delta** - 性能差异对比（FPS、CPU）
-   - **CPU Usage** - CPU 占用率曲线
-   - **FPS** - 编码帧率对比
-   - **Details** - 详细性能数据
-7. **Machine Info** - 执行环境信息（Anchor 和 Test）
-
-**侧边栏目录**：完整的章节导航，包含所有子章节锚点链接
-
-### Metrics Comparison 页面 (3_⚖️_Metrics_Comparison.py)
-
-- Anchor vs Test 对比
-- BD-Rate 汇总表
-- RD 曲线对比
-- 编码性能对比（FPS、CPU）
-- 环境信息展示
-
-### Stream Analysis 页面 (4_📈_Stream_Comparison.py)
-
-- 码流分析结果展示
-- 逐帧 PSNR/SSIM/VMAF 曲线
-- 帧类型分布
-- 码率分析
-
-## 报告数据结构
-
-### Stream Analysis 报告 (report_data.json)
-
-```json
-{
-  "kind": "bitstream_analysis",
-  "reference": {
-    "label": "source.mp4",
-    "width": 1920, "height": 1080, "fps": 30,
-    "frames": 300
-  },
-  "encoded": [
-    {
-      "label": "encoded_crf23.h265",
-      "width": 1280, "height": 720, "fps": 30,
-      "codec": "hevc",
-      "metrics": {
-        "psnr": { "summary": { "psnr_avg": 42.5 }, "frames": [...] },
-        "ssim": { "summary": { "ssim_avg": 0.98 }, "frames": [...] },
-        "vmaf": { "summary": { "vmaf_mean": 95.2, "vmaf_neg_mean": 94.8 }, "frames": [...] }
-      },
-      "bitrate": {
-        "avg_bitrate_bps": 2500000,
-        "frame_types": ["I", "P", "B", ...],
-        "frame_sizes": [12345, 2345, ...]
-      }
-    }
-  ]
-}
+# 解析 full（用于 Stream Analysis）
+parse_psnr_log(log_content) → {"summary": {...}, "frames": [...]}
+parse_ssim_log(log_content) → {"summary": {...}, "frames": [...]}
+parse_vmaf_log(log_content) → {"summary": {...}, "frames": [...]}
 ```
 
-### Metrics Comparison 报告 (report_data.json)
+⚠️ **重要**：
+- **必须使用 `parse_*_summary` 用于 Metrics 类型**（保证数据结构统一）
+- **使用 `parse_*_log` 用于 Stream Analysis**（需要 frames 数据）
 
-```json
-{
-  "kind": "template_metrics",
-  "template_id": "xxx",
-  "template_name": "H265 vs H264",
-  "rate_control": "crf",
-  "bitrate_points": [21, 24, 27, 30],
-  "anchor": { "encoder_type": "ffmpeg", "encoder_params": "-c:v libx264 ..." },
-  "test": { "encoder_type": "ffmpeg", "encoder_params": "-c:v libx265 ..." },
-  "entries": [
-    {
-      "source": "video1.mp4",
-      "anchor": { "encoded": [...] },
-      "test": { "encoded": [...] }
-    }
-  ],
-  "bd_metrics": [
-    {
-      "source": "video1.mp4",
-      "bd_rate_psnr": -15.2,
-      "bd_rate_ssim": -12.8,
-      "bd_rate_vmaf": -18.5,
-      "bd_rate_vmaf_neg": -17.2
-    }
-  ],
-  "anchor_environment": { "os": "Darwin", "cpu_model": "Apple M2", ... },
-  "test_environment": { ... }
-}
+**代码位置**：`src/services/ffmpeg.py:633-679`
+
+---
+
+## BD-Rate 计算
+
+**文件**：`src/utils/bd_rate.py`
+
+**函数**：
+```python
+bd_rate(r1, m1, r2, m2) → float  # BD-Rate（百分比）
+bd_metrics(r1, m1, r2, m2) → float  # BD-Metrics（绝对值）
 ```
+
+**参数**：
+- `r1`: Anchor 码率列表
+- `m1`: Anchor 指标列表（PSNR/SSIM/VMAF）
+- `r2`: Test 码率列表
+- `m2`: Test 指标列表
+
+**要求**：至少 4 个码率点
+
+---
 
 ## API 端点
 
-### 任务 API
-
-- `POST /api/jobs` - 创建任务
-- `GET /api/jobs` - 列出任务
+### 任务 API (`src/api/jobs.py`)
+- `POST /api/jobs` - 创建 Stream Analysis 任务
+- `GET /api/jobs` - 列出所有任务
 - `GET /api/jobs/{job_id}` - 获取任务详情
 - `DELETE /api/jobs/{job_id}` - 删除任务
 
-### 模板 API (Metrics Comparison)
-
-- `POST /api/templates` - 创建模板
-- `GET /api/templates` - 列出模板
-- `GET /api/templates/{template_id}` - 获取模板
-- `PUT /api/templates/{template_id}` - 更新模板
-- `DELETE /api/templates/{template_id}` - 删除模板
-- `POST /api/templates/{template_id}/jobs` - 创建模板任务
-
-### Metrics Analysis API
-
-- `POST /api/metrics-analysis/templates` - 创建模板
+### Metrics Analysis API (`src/api/metrics_analysis.py`)
+- `POST /api/metrics-analysis/templates` - 创建 Metrics Analysis 模板
 - `GET /api/metrics-analysis/templates` - 列出模板
 - `POST /api/metrics-analysis/templates/{template_id}/jobs` - 创建任务
 
-## 配置文件 (config.yml)
+### Metrics Comparison API (`src/api/templates.py`)
+- `POST /api/templates` - 创建 Metrics Comparison 模板
+- `GET /api/templates` - 列出模板
+- `PUT /api/templates/{template_id}` - 更新模板
+- `DELETE /api/templates/{template_id}` - 删除模板
+- `POST /api/templates/{template_id}/jobs` - 创建任务
 
-```yaml
-host: "0.0.0.0"
-fastapi_port: 8078
-streamlit_port: 8079
-reports_root_dir: "./data/reports"
-jobs_root_dir: "./data/jobs"
-templates_root_dir: "./data/templates"
-ffmpeg_path: null  # 使用系统默认
-ffmpeg_timeout: 3600
-log_level: "INFO"
+---
+
+## 关键文件速查
+
+| 文件 | 用途 | 关键点 |
+|------|------|--------|
+| `src/services/ffmpeg.py` | FFmpeg 封装 | 编码、指标计算、管道打分 |
+| `src/services/bitstream_analysis.py` | 码流分析核心 | 返回两个值：(report, summary) |
+| `src/services/template_runner.py` | Metrics Comparison 执行器 | 使用共享性能模块，复用码流时添加 None |
+| `src/services/metrics_analysis_runner.py` | Metrics Analysis 执行器 | 使用 summary，保证数据结构统一 |
+| `src/utils/performance.py` | 性能监控共享模块 | CPU 采样、FPS 计算、编码时间 |
+| `src/utils/encoding.py` | 编码命令构建 | 分辨率/帧率转换滤镜 |
+| `src/utils/bd_rate.py` | BD-Rate 计算 | 需要至少 4 个码率点 |
+| `src/utils/streamlit_helpers.py` | Streamlit 辅助函数 | `_metric_value()` 直接访问字段 |
+
+---
+
+# Part 2: VMR (Frontend) - Video Metrics Reporter
+
+## 页面路由
+
+```
+1_🏠_Home.py (首页)
+    ├─→ 2_📊_Metrics_Details.py (Metrics 详情报告)
+    ├─→ 3_🆚_Metrics_Comparison.py (Metrics 对比报告)
+    └─→ 4_📈_Stream_Comparison.py (Stream 分析报告)
 ```
 
-## 启动方式
+**URL 跳转规则**：
+- Metrics Details: `/Metrics_Details?job_id={job_id}`
+- Metrics Comparison (任务对比): `/Metrics_Comparison?anchor_job={id1}&test_job={id2}`
+- Metrics Comparison (模板报告): `/Metrics_Comparison?template_job_id={job_id}`
+- Stream Comparison: `/Stream_Comparison?job_id={job_id}`
 
-```bash
-./run.sh
+⚠️ **注意**：首页链接使用 `/Stream_Comparison`，不是 `/Stream_Analysis`
+
+---
+
+## 报告类型详解
+
+### 1. Metrics 详情报告（单个 Metrics Analysis 任务）
+
+**页面**：`2_📊_Metrics_Details.py`
+
+**访问方式**：
+- 从首页点击"最近的Metrics详情报告"
+- 直接 URL: `/Metrics_Details?job_id={job_id}`
+
+**数据源**：`data/jobs/{job_id}/metrics_analysis/analyse_data.json`
+
+**报告结构**：
+1. **Information** - 编码配置信息
+2. **Overall** - 整体指标汇总
+3. **Metrics** - RD 曲线
+4. **Details** - 详细指标表格
+5. **Performance** - 编码性能数据（如果有）
+6. **Machine Info** - 执行环境信息
+
+**数据解析关键**：
+```python
+# ✅ 正确：metrics 直接是 item
+for item in entry.get("encoded") or []:
+    metrics = item  # ← 不是 item.get("metrics")
+    psnr = metrics.get("psnr", {}).get("psnr_avg")
 ```
 
-或分别启动：
+**代码位置**：`src/pages/2_📊_Metrics_Details.py:48`
 
-```bash
-# FastAPI
-uvicorn src.main:app --host 0.0.0.0 --port 8078
+---
 
-# Streamlit
-streamlit run src/1_🏠_Home.py --server.port 8079
+### 2. 基于任务的 Metrics 对比报告
+
+**页面**：`3_🆚_Metrics_Comparison.py`（模式1）
+
+**访问方式**：
+- 从首页选择两个 Metrics Analysis 任务后生成
+- 直接 URL: `/Metrics_Comparison?anchor_job={id1}&test_job={id2}`
+
+**数据源**：
+- Anchor: `data/jobs/{anchor_job}/metrics_analysis/analyse_data.json`
+- Test: `data/jobs/{test_job}/metrics_analysis/analyse_data.json`
+
+**报告结构**（与模板报告完全一致）：
+1. **Information** - 编码器配置对比
+2. **Overall** - 整体指标汇总 + BD-Rate 汇总
+3. **Metrics** - RD 曲线 + Delta 分析 + Details
+4. **BD-Rate** - BD-Rate 汇总表 + 4 个独立柱状图
+5. **BD-Metrics** - BD-Metrics 汇总表 + 4 个独立柱状图
+6. **Performance** - 性能对比（FPS、CPU）
+7. **Machine Info** - Anchor 和 Test 环境信息
+
+**侧边栏**：完整的章节导航
+
+**数据解析关键**：
+```python
+# ✅ 正确：metrics 直接是 item
+for item in entry.get("encoded") or []:
+    metrics = item  # ← 不是 item.get("metrics")
+    psnr = metrics.get("psnr", {}).get("psnr_avg")
 ```
 
-## 关键文件说明
+**代码位置**：`src/pages/3_🆚_Metrics_Comparison.py:62-63`
 
-| 文件 | 说明 |
-|------|------|
-| `src/services/ffmpeg.py` | FFmpeg 封装，包含编码、指标计算、管道打分 |
-| `src/services/bitstream_analysis.py` | 码流分析核心逻辑 |
-| `src/services/template_runner.py` | Metrics Comparison 执行器，使用共享性能监控模块 |
-| `src/services/metrics_analysis_runner.py` | Metrics Analysis 执行器，包含性能数据收集 |
-| `src/utils/performance.py` | 性能监控模块（CPU、FPS、编码时间采集） |
-| `src/utils/video_processing.py` | 分辨率/帧率计算、滤镜构建 |
-| `src/utils/encoding.py` | 编码命令构建 |
-| `src/utils/bd_rate.py` | BD-Rate 计算算法 |
-| `src/models/template.py` | 模板数据模型 |
-| `src/models/job.py` | 任务数据模型 |
+---
+
+### 3. 基于模板的 Metrics 对比报告
+
+**页面**：`3_🆚_Metrics_Comparison.py`（模式2）
+
+**访问方式**：
+- 从首页点击"模板对比报告"
+- 直接 URL: `/Metrics_Comparison?template_job_id={job_id}`
+
+**数据源**：`data/jobs/{job_id}/metrics_analysis/report_data.json`
+
+**报告结构**：与任务对比报告**完全一致**
+
+**额外功能**：码率对比图表
+- 选择视频和码率点
+- 柱状图/折线图显示 Anchor vs Test 码率变化
+- 可调聚合间隔
+
+**数据解析关键**：
+```python
+# ✅ 正确：metrics 直接是 item
+for item in side.get("encoded") or []:
+    metrics = item  # ← 不是 item.get("metrics")
+    psnr = metrics.get("psnr", {}).get("psnr_avg")
+```
+
+**代码位置**：`src/pages/3_🆚_Metrics_Comparison.py:370-386`
+
+---
+
+### 4. Stream 分析报告
+
+**页面**：`4_📈_Stream_Comparison.py`
+
+**访问方式**：
+- 从首页点击"最近的Stream分析报告"
+- 直接 URL: `/Stream_Comparison?job_id={job_id}`
+
+**数据源**：`data/jobs/{job_id}/analysis/report_data.json`
+
+**报告结构**：
+1. **Reference Info** - 参考视频信息
+2. **Encoded Videos** - 编码视频列表和指标
+3. **Frame-Level Metrics** - 逐帧 PSNR/SSIM/VMAF 曲线
+4. **Bitrate Analysis** - 帧类型分布、码率分析
+
+**数据解析关键**：
+```python
+# ✅ 正确：Stream 有 metrics 包装器，且有 summary 子键
+for item in encoded_items:
+    metrics = item.get("metrics", {}) or {}
+    psnr = (metrics.get("psnr", {}) or {}).get("summary", {}) or {}
+    value = psnr.get("psnr_avg")
+```
+
+**代码位置**：`src/pages/4_📈_Stream_Comparison.py:228-234`
+
+---
+
+## 统一解析函数
+
+**文件**：`src/utils/streamlit_helpers.py`
+
+```python
+def _metric_value(metrics: Dict[str, Any], name: str, field: str) -> Optional[float]:
+    """从 metrics 字典中提取指标值"""
+    block = metrics.get(name) or {}
+    if not isinstance(block, dict):
+        return None
+    return block.get(field)
+```
+
+**使用方式**：
+```python
+# Metrics 类型（无 metrics 包装器）
+metrics = item  # 直接是 item
+psnr = _metric_value(metrics, "psnr", "psnr_avg")
+
+# Stream 类型（有 metrics 包装器）
+metrics = item.get("metrics", {}) or {}
+psnr = _metric_value(metrics, "psnr", "psnr_avg")
+```
+
+---
+
+## 通用组件库
+
+**文件**：`src/utils/streamlit_metrics_components.py`
+
+**组件列表**：
+- `inject_smooth_scroll_css()` - 平滑滚动
+- `render_sidebar_contents_single()` - 单报告侧边栏
+- `render_sidebar_contents()` - 对比报告侧边栏
+- `render_overall_section()` - Overall 汇总
+- `render_rd_curves()` - RD 曲线
+- `render_metrics_delta()` - Delta 分析
+- `render_performance_section()` - 性能分析
+- `render_bd_rate_section()` - BD-Rate 分析
+- `render_bd_metrics_section()` - BD-Metrics 分析
+- `render_machine_info()` - 机器信息
+
+**设计原则**：
+- 组件可复用于不同报告页面
+- 统一视觉风格
+- 统一交互体验
+
+---
+
+## ⚠️ 易错点总结
+
+### 1. 数据结构混淆
+| 报告类型 | 数据结构 | 解析方式 |
+|---------|---------|---------|
+| Stream Analysis | `encoded[i].metrics.pnr.summary.psnr_avg` | `item.get("metrics").get("psnr").get("summary")` |
+| Metrics Analysis | `encoded[i].psnr.psnr_avg` | `item` 直接 |
+| Metrics Comparison | `encoded[i].psnr.psnr_avg` | `item` 直接 |
+
+### 2. 页面路由错误
+- ❌ 错误：`/Stream_Analysis`
+- ✅ 正确：`/Stream_Comparison`
+
+### 3. 性能数据采集
+- 复用已有码流时：添加 `None`，不要添加 `PerformanceData()`
+- 添加到 encoded 时：检查 `if perf is not None`
+
+### 4. 指标解析函数选择
+- Metrics 类型：使用 `parse_*_summary`
+- Stream 类型：使用 `parse_*_log`
+
+---
+
+## 用户明确要求
+
+1. **数据结构统一**：所有 Metrics 类型报告使用相同数据结构（无 metrics 包装器）
+2. **代码复用**：性能监控、BD-Rate 计算、指标解析等功能模块化
+3. **报告结构一致**：任务对比报告和模板对比报告结构完全相同
+4. **交互体验**：侧边栏导航、平滑滚动、统一视觉风格
