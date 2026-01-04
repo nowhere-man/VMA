@@ -16,7 +16,7 @@ from src.utils.streamlit_helpers import list_jobs
 # 页面配置
 st.set_page_config(
     page_title="首页 - VMR",
-    page_icon="📑",
+    page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -28,7 +28,7 @@ def _list_bitstream_jobs(limit: int = 20) -> List[Dict]:
 
 
 def _list_metrics_analysis_jobs(limit: int = 20) -> List[Dict]:
-    """列出📊 Metrics job_id 列表。"""
+    """列出🔎 Metrics job_id 列表。"""
     return list_jobs("metrics_analysis/metrics_analysis.json", limit=limit, check_status=True)
 
 

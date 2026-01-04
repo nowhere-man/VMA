@@ -179,7 +179,7 @@ def _collect_points(entries: List[Dict[str, Any]], side_key: str) -> List[float]
 # ========== 页面主逻辑 ==========
 
 st.set_page_config(
-    page_title="首页 - VMR",
+    page_title="Metrics对比 - VMR",
     page_icon="🆚",
     layout="wide",
 )
@@ -568,9 +568,8 @@ elif template_job_id:
         st.info("暂无性能数据。请确保编码任务已完成并采集了性能数据。")
 
     # Machine Info
-    env_anchor = report.get("anchor_environment") or {}
-    env_test = report.get("test_environment") or {}
-    render_machine_info(env_anchor, env_test, "Anchor", "Test")
+    env_single = report.get("environment") or {}
+    render_machine_info(env_single, None, "Anchor", "Test")
 
 # 模式3: 显示选择界面 + 报告列表
 else:

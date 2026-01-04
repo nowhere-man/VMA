@@ -302,3 +302,48 @@ def finish_command(job, log: Optional[CommandLog], status: CommandStatus, storag
         storage.update_job(job)
     except Exception:
         pass
+
+
+def reorganize_encode_results(
+    results: List[Tuple[int, int, Path, Optional["PerformanceData"]]],
+    sources: List[SourceInfo],
+) -> Tuple[Dict[str, Tuple[List[Path], int, int, float]], Dict[str, List[Optional["PerformanceData"]]]]:
+    """
+    重组编码结果（按源文件分组）
+
+    Args:
+        results: asyncio.gather() 的返回结果，格式为 (src_idx, point_idx, out_path, perf)
+        sources: 源文件列表
+
+    Returns:
+        Tuple[outputs, perf_data]:
+            - outputs: {source_stem: (encoded_paths, out_width, out_height, out_fps)}
+            - perf_data: {source_stem: [PerformanceData, ...]}
+    """
+    from src.utils.performance import PerformanceData
+
+    # 重组结果（按原始顺序）
+    outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
+    perf_data: Dict[str, List[Optional[PerformanceData]]] = {}
+
+    for src in sources:
+        src_results = [r for r in results if r[0] == sources.index(src)]
+        file_outputs = []
+        file_perfs = []
+
+        # 按码率点顺序排序
+        src_results.sort(key=lambda x: x[1])
+
+        for _, point_idx, out_path, perf in src_results:
+            file_outputs.append(out_path)
+            file_perfs.append(perf)
+
+        # 获取输出尺寸和帧率（从第一个有效结果）
+        out_width = src.width
+        out_height = src.height
+        out_fps = src.fps
+
+        outputs[src.path.stem] = (file_outputs, out_width, out_height, out_fps)
+        perf_data[src.path.stem] = file_perfs
+
+    return outputs, perf_data

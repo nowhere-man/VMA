@@ -27,6 +27,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
 
+def _schedule_to_detail_response(schedule: ScheduleMetadata) -> ScheduleDetailResponse:
+    """将 ScheduleMetadata 转换为 ScheduleDetailResponse"""
+    return ScheduleDetailResponse(
+        schedule_id=schedule.schedule_id,
+        name=schedule.name,
+        description=schedule.description,
+        encoder_type=schedule.encoder_type,
+        encoder_config=schedule.encoder_config.model_dump(),
+        template_id=schedule.template_id,
+        template_type=schedule.template_type,
+        template_name=schedule.template_name,
+        start_time=schedule.start_time,
+        repeat=schedule.repeat,
+        status=schedule.status,
+        created_at=schedule.created_at,
+        updated_at=schedule.updated_at,
+        last_execution=schedule.last_execution,
+        last_execution_status=schedule.last_execution_status,
+        last_execution_job_id=schedule.last_execution_job_id,
+        next_execution=schedule.next_execution,
+    )
+
+
 @router.post(
     "",
     response_model=CreateScheduleResponse,
@@ -148,25 +171,7 @@ async def get_schedule(schedule_id: str) -> ScheduleDetailResponse:
     if next_run:
         schedule.next_execution = next_run
 
-    return ScheduleDetailResponse(
-        schedule_id=schedule.schedule_id,
-        name=schedule.name,
-        description=schedule.description,
-        encoder_type=schedule.encoder_type,
-        encoder_config=schedule.encoder_config.model_dump(),
-        template_id=schedule.template_id,
-        template_type=schedule.template_type,
-        template_name=schedule.template_name,
-        start_time=schedule.start_time,
-        repeat=schedule.repeat,
-        status=schedule.status,
-        created_at=schedule.created_at,
-        updated_at=schedule.updated_at,
-        last_execution=schedule.last_execution,
-        last_execution_status=schedule.last_execution_status,
-        last_execution_job_id=schedule.last_execution_job_id,
-        next_execution=schedule.next_execution,
-    )
+    return _schedule_to_detail_response(schedule)
 
 
 @router.put(
@@ -223,25 +228,7 @@ async def update_schedule(
 
     logger.info(f"Schedule updated: {schedule_id}")
 
-    return ScheduleDetailResponse(
-        schedule_id=schedule.schedule_id,
-        name=schedule.name,
-        description=schedule.description,
-        encoder_type=schedule.encoder_type,
-        encoder_config=schedule.encoder_config.model_dump(),
-        template_id=schedule.template_id,
-        template_type=schedule.template_type,
-        template_name=schedule.template_name,
-        start_time=schedule.start_time,
-        repeat=schedule.repeat,
-        status=schedule.status,
-        created_at=schedule.created_at,
-        updated_at=schedule.updated_at,
-        last_execution=schedule.last_execution,
-        last_execution_status=schedule.last_execution_status,
-        last_execution_job_id=schedule.last_execution_job_id,
-        next_execution=schedule.next_execution,
-    )
+    return _schedule_to_detail_response(schedule)
 
 
 @router.delete(

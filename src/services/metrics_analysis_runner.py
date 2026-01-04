@@ -26,26 +26,10 @@ from src.utils.encoding import (
     start_command as _start_command,
     finish_command as _finish_command,
     now as _now,
+    reorganize_encode_results as _reorganize_encode_results,
 )
 from src.utils.performance import PerformanceData, run_encode_with_perf
-
-
-def _env_info() -> Dict[str, str]:
-    info = {}
-    try:
-        info["os"] = platform.platform()
-        cpu = platform.processor() or platform.uname().processor
-        info["cpu"] = cpu or ""
-        info["phys_cores"] = str(psutil.cpu_count(logical=False) or "")
-        info["log_cores"] = str(psutil.cpu_count(logical=True) or "")
-        info["numa_nodes"] = ""
-        info["cpu_percent_start"] = str(psutil.cpu_percent(interval=0.1))
-        vm = psutil.virtual_memory()
-        info["mem_total"] = str(vm.total)
-        info["mem_available"] = str(vm.available)
-    except Exception:
-        pass
-    return info
+from src.utils.system_info import get_env_info
 
 
 async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=None) -> Tuple[Dict[str, Tuple[List[Path], int, int, float]], Dict[str, List[PerformanceData]]]:
@@ -124,30 +108,7 @@ async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=Non
     results = await asyncio.gather(*tasks)
 
     # 重组结果（按原始顺序）
-    outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
-    perf_data: Dict[str, List[Optional[PerformanceData]]] = {}
-
-    for src in sources:
-        src_results = [r for r in results if r[0] == sources.index(src)]
-        file_outputs = []
-        file_perfs = []
-
-        # 按码率点顺序排序
-        src_results.sort(key=lambda x: x[1])
-
-        for _, point_idx, out_path, perf in src_results:
-            file_outputs.append(out_path)
-            file_perfs.append(perf)
-
-        # 获取输出尺寸和帧率（从第一个有效结果）
-        out_width = src.width
-        out_height = src.height
-        out_fps = src.fps
-
-        outputs[src.path.stem] = (file_outputs, out_width, out_height, out_fps)
-        perf_data[src.path.stem] = file_perfs
-
-    return outputs, perf_data
+    return _reorganize_encode_results(results, sources)
 
 
 async def _analyze_single(
@@ -255,7 +216,7 @@ class MetricsAnalysisRunner:
             "rate_control": config.rate_control.value if config.rate_control else None,
             "bitrate_points": config.bitrate_points,
             "entries": entries,
-            "environment": _env_info(),
+            "environment": get_env_info(),
         }
 
         data_path = analysis_root / "metrics_analysis.json"

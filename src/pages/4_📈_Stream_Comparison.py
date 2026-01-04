@@ -72,7 +72,7 @@ def _plot_frame_lines(
 
 
 st.set_page_config(
-    page_title="首页 - VMR",
+    page_title="Stream对比 - VMR",
     page_icon="📈",
     layout="wide",
 )

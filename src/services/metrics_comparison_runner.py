@@ -32,144 +32,11 @@ from src.utils.encoding import (
     start_command as _start_command,
     finish_command as _finish_command,
     now as _now,
+    reorganize_encode_results as _reorganize_encode_results,
 )
 from src.utils.template_helpers import fingerprint as _fingerprint
 from src.utils.performance import PerformanceData, run_encode_with_perf as _run_encode_with_perf
-
-
-
-
-def _get_cpu_brand() -> str:
-    """跨平台获取 CPU 品牌/型号名称"""
-    import subprocess
-
-    # macOS: 使用 sysctl
-    if platform.system() == "Darwin":
-        try:
-            result = subprocess.run(
-                ["sysctl", "-n", "machdep.cpu.brand_string"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-        except Exception:
-            pass
-
-    # Linux: 读取 /proc/cpuinfo
-    if platform.system() == "Linux":
-        try:
-            with open("/proc/cpuinfo", "r") as f:
-                for line in f:
-                    if line.startswith("model name"):
-                        return line.split(":")[1].strip()
-        except Exception:
-            pass
-
-    # Windows: 使用 wmic 或注册表
-    if platform.system() == "Windows":
-        try:
-            result = subprocess.run(
-                ["wmic", "cpu", "get", "name"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip() and l.strip() != "Name"]
-                if lines:
-                    return lines[0]
-        except Exception:
-            pass
-
-    # 回退到 platform.processor()
-    return platform.processor() or "Unknown"
-
-
-def _env_info() -> Dict[str, Any]:
-    info: Dict[str, Any] = {}
-    try:
-        # 执行时间
-        from datetime import datetime
-        info["execution_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # 操作系统
-        info["os"] = platform.system()
-        info["os_version"] = platform.release()
-        info["os_full"] = platform.platform()
-
-        # CPU 信息
-        info["cpu_arch"] = platform.machine()  # x86_64, arm64, aarch64 等
-        info["cpu_model"] = _get_cpu_brand()   # Apple M2, Intel Xeon 等
-        info["cpu_phys_cores"] = psutil.cpu_count(logical=False) or 0
-        info["cpu_log_cores"] = psutil.cpu_count(logical=True) or 0
-        info["cpu_percent_before"] = round(psutil.cpu_percent(interval=0.1), 1)
-
-        # CPU 主频（MHz）
-        try:
-            cpu_freq = psutil.cpu_freq()
-            if cpu_freq:
-                info["cpu_freq_mhz"] = round(cpu_freq.current, 2)
-        except Exception:
-            pass
-
-        # NUMA nodes
-        try:
-            import subprocess
-            if platform.system() == "Linux":
-                result = subprocess.run(
-                    ["lscpu"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2,
-                )
-                if result.returncode == 0:
-                    for line in result.stdout.split("\n"):
-                        if line.startswith("NUMA node(s):"):
-                            info["numa_nodes"] = int(line.split(":")[1].strip())
-                            break
-        except Exception:
-            pass
-
-        # 内存信息（转换为 GB）
-        vm = psutil.virtual_memory()
-        info["mem_total_gb"] = round(vm.total / (1024 ** 3), 2)
-        info["mem_used_gb"] = round(vm.used / (1024 ** 3), 2)
-        info["mem_available_gb"] = round(vm.available / (1024 ** 3), 2)
-        info["mem_percent_used"] = round(vm.percent, 1)
-
-        # Linux 发行版信息
-        if platform.system() == "Linux":
-            try:
-                import subprocess
-                result = subprocess.run(
-                    ["lsb_release", "-d"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2,
-                )
-                if result.returncode == 0:
-                    info["linux_distro"] = result.stdout.split(":", 1)[1].strip() if ":" in result.stdout else result.stdout.strip()
-                else:
-                    # 尝试读取 /etc/os-release
-                    try:
-                        with open("/etc/os-release", "r") as f:
-                            for line in f:
-                                if line.startswith("PRETTY_NAME="):
-                                    info["linux_distro"] = line.split("=", 1)[1].strip().strip('"')
-                                    break
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-        # 主机名
-        info["hostname"] = platform.node()
-
-    except Exception:
-        pass
-    return info
+from src.utils.system_info import get_env_info
 
 
 async def _encode_side(
@@ -251,30 +118,7 @@ async def _encode_side(
     results = await asyncio.gather(*tasks)
 
     # 重组结果（按原始顺序）
-    outputs: Dict[str, Tuple[List[Path], int, int, float]] = {}
-    perf_data: Dict[str, List[Optional[PerformanceData]]] = {}
-
-    for src in sources:
-        src_results = [r for r in results if r[0] == sources.index(src)]
-        file_outputs = []
-        file_perfs = []
-
-        # 按码率点顺序排序
-        src_results.sort(key=lambda x: x[1])
-
-        for _, point_idx, out_path, perf in src_results:
-            file_outputs.append(out_path)
-            file_perfs.append(perf)
-
-        # 获取输出尺寸和帧率（从第一个有效结果）
-        out_width = src.width
-        out_height = src.height
-        out_fps = src.fps
-
-        outputs[src.path.stem] = (file_outputs, out_width, out_height, out_fps)
-        perf_data[src.path.stem] = file_perfs
-
-    return outputs, perf_data
+    return _reorganize_encode_results(results, sources)
 
 
 async def run_template(
@@ -335,14 +179,14 @@ async def run_template(
         raise ValueError(f"源文件不匹配: Anchor 多 {missing_a}，Test 多 {missing_b}")
     ordered_sources = [anchor_map[k] for k in sorted(anchor_map.keys())]
 
+    # 收集环境信息（任务开始时采集一次）
+    env_info = get_env_info()
+
     # Anchor 编码/校验
     def _has_files(p: Path) -> bool:
         return any(p.glob("*")) if p.exists() else False
 
     anchor_needed = (not template.metadata.anchor_computed) or (not _has_files(Path(template.metadata.anchor.bitstream_dir)))
-
-    # 收集 Anchor 环境信息（编码前）
-    anchor_env = _env_info()
 
     anchor_outputs, anchor_perfs = await _encode_side(
         template.metadata.anchor,
@@ -354,9 +198,6 @@ async def run_template(
     template.metadata.anchor_fingerprint = _fingerprint(template.metadata.anchor)
 
     # Test 编码/校验
-    # 收集 Test 环境信息（编码前）
-    test_env = _env_info()
-
     test_outputs, test_perfs = await _encode_side(
         template.metadata.test,
         [test_map[s.path.stem] for s in ordered_sources],
@@ -539,8 +380,7 @@ async def run_template(
         "anchor_fingerprint": _fingerprint(template.metadata.anchor),
         "entries": report_entries,
         "bd_metrics": bd_metrics,
-        "anchor_environment": anchor_env,
-        "test_environment": test_env,
+        "environment": env_info,
     }
 
     if job:

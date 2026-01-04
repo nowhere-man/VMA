@@ -92,7 +92,7 @@ def _get_report_info(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 st.set_page_config(
-    page_title="首页 - VMR",
+    page_title="Metrics详情 - VMR",
     page_icon="📊",
     layout="wide",
 )

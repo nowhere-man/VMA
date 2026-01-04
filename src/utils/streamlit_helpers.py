@@ -865,6 +865,158 @@ def _format_points(points: Optional[List[float]]) -> str:
     return ", ".join(f"{p:g}" for p in sorted(set(clean)))
 
 
+def _format_env_info_with_diff(env: Dict[str, Any], other_env: Dict[str, Any]) -> str:
+    """格式化环境信息，标红不同的字段
+
+    Args:
+        env: 当前环境信息
+        other_env: 对比环境信息
+
+    Returns:
+        包含 HTML 标签的 Markdown 字符串
+    """
+    if not env:
+        return "未采集到环境信息。"
+
+    def _highlight_if_diff(value: Any, other_value: Any) -> str:
+        """如果值不同，返回红色高亮的 HTML"""
+        value_str = str(value) if value is not None else 'N/A'
+        other_str = str(other_value) if other_value is not None else 'N/A'
+        if value_str != other_str:
+            return f'<span style="color: red;">{value_str}</span>'
+        return value_str
+
+    lines = []
+
+    # 系统信息
+    lines.append("**系统信息**")
+    os_name = env.get('os', 'N/A')
+    other_os = other_env.get('os', 'N/A')
+    hostname = env.get('hostname', 'N/A')
+    other_hostname = other_env.get('hostname', 'N/A')
+    linux_distro = env.get('linux_distro', '')
+    other_distro = other_env.get('linux_distro', '')
+
+    lines.append(f"- **操作系统**: {_highlight_if_diff(os_name, other_os)}")
+    lines.append(f"- **主机名**: {_highlight_if_diff(hostname, other_hostname)}")
+    if os_name == "Linux" and linux_distro:
+        lines.append(f"- **发行版**: {_highlight_if_diff(linux_distro, other_distro)}")
+
+    lines.append("")  # 空行
+
+    # CPU 信息
+    lines.append("**CPU 信息**")
+    cpu_model = env.get('cpu_model', env.get('cpu', 'N/A'))
+    other_cpu_model = other_env.get('cpu_model', other_env.get('cpu', 'N/A'))
+    cpu_arch = env.get('cpu_arch', 'N/A')
+    other_cpu_arch = other_env.get('cpu_arch', 'N/A')
+    phys_cores = env.get('cpu_phys_cores', env.get('phys_cores', 'N/A'))
+    other_phys_cores = other_env.get('cpu_phys_cores', other_env.get('phys_cores', 'N/A'))
+    log_cores = env.get('cpu_log_cores', env.get('log_cores', 'N/A'))
+    other_log_cores = other_env.get('cpu_log_cores', other_env.get('log_cores', 'N/A'))
+    cpu_freq = env.get('cpu_freq_mhz', 'N/A')
+    other_cpu_freq = other_env.get('cpu_freq_mhz', 'N/A')
+    numa_nodes = env.get('numa_nodes', 'N/A')
+    other_numa_nodes = other_env.get('numa_nodes', 'N/A')
+    cpu_percent = env.get('cpu_percent_before', env.get('cpu_percent_start', 'N/A'))
+    other_cpu_percent = other_env.get('cpu_percent_before', other_env.get('cpu_percent_start', 'N/A'))
+
+    lines.append(f"- **CPU 型号**: {_highlight_if_diff(cpu_model, other_cpu_model)}")
+    lines.append(f"- **CPU 架构**: {_highlight_if_diff(cpu_arch, other_cpu_arch)}")
+
+    cores_str = f"{phys_cores}C/{log_cores}T"
+    other_cores_str = f"{other_phys_cores}C/{other_log_cores}T"
+    lines.append(f"- **核心/线程**: {_highlight_if_diff(cores_str, other_cores_str)}")
+
+    freq_str = f"{cpu_freq} MHz"
+    other_freq_str = f"{other_cpu_freq} MHz"
+    lines.append(f"- **CPU 主频**: {_highlight_if_diff(freq_str, other_freq_str)}")
+
+    lines.append(f"- **NUMA Nodes**: {_highlight_if_diff(numa_nodes, other_numa_nodes)}")
+
+    percent_str = f"{cpu_percent}%"
+    other_percent_str = f"{other_cpu_percent}%"
+    lines.append(f"- **CPU 占用率**: {_highlight_if_diff(percent_str, other_percent_str)}")
+
+    lines.append("")  # 空行
+
+    # 内存信息
+    lines.append("**内存信息**")
+    # 兼容新旧格式
+    mem_total_gb = env.get('mem_total_gb')
+    other_mem_total_gb = other_env.get('mem_total_gb')
+    mem_used_gb = env.get('mem_used_gb')
+    other_mem_used_gb = other_env.get('mem_used_gb')
+    mem_available_gb = env.get('mem_available_gb')
+    other_mem_available_gb = other_env.get('mem_available_gb')
+    mem_percent = env.get('mem_percent_used')
+    other_mem_percent = other_env.get('mem_percent_used')
+
+    # 如果是旧格式（MB），转换为 GB
+    if mem_total_gb is None and env.get('mem_total_mb'):
+        try:
+            mem_total_gb = round(env.get('mem_total_mb') / 1024, 2)
+        except (ValueError, TypeError):
+            pass
+    if other_mem_total_gb is None and other_env.get('mem_total_mb'):
+        try:
+            other_mem_total_gb = round(other_env.get('mem_total_mb') / 1024, 2)
+        except (ValueError, TypeError):
+            pass
+    if mem_available_gb is None and env.get('mem_available_mb'):
+        try:
+            mem_available_gb = round(env.get('mem_available_mb') / 1024, 2)
+        except (ValueError, TypeError):
+            pass
+    if other_mem_available_gb is None and other_env.get('mem_available_mb'):
+        try:
+            other_mem_available_gb = round(other_env.get('mem_available_mb') / 1024, 2)
+        except (ValueError, TypeError):
+            pass
+    if mem_used_gb is None and mem_total_gb and mem_available_gb:
+        mem_used_gb = round(mem_total_gb - mem_available_gb, 2)
+    if other_mem_used_gb is None and other_mem_total_gb and other_mem_available_gb:
+        other_mem_used_gb = round(other_mem_total_gb - other_mem_available_gb, 2)
+
+    # 计算可用率
+    mem_avail_percent = None
+    other_mem_avail_percent = None
+    if mem_percent is not None:
+        mem_avail_percent = round(100 - mem_percent, 1)
+    elif mem_total_gb and mem_available_gb:
+        mem_avail_percent = round((mem_available_gb / mem_total_gb) * 100, 1)
+    if other_mem_percent is not None:
+        other_mem_avail_percent = round(100 - other_mem_percent, 1)
+    elif other_mem_total_gb and other_mem_available_gb:
+        other_mem_avail_percent = round((other_mem_available_gb / other_mem_total_gb) * 100, 1)
+
+    total_str = f"{mem_total_gb if mem_total_gb else 'N/A'} GB"
+    other_total_str = f"{other_mem_total_gb if other_mem_total_gb else 'N/A'} GB"
+    lines.append(f"- **总内存**: {_highlight_if_diff(total_str, other_total_str)}")
+
+    used_str = f"{mem_used_gb if mem_used_gb else 'N/A'} GB"
+    other_used_str = f"{other_mem_used_gb if other_mem_used_gb else 'N/A'} GB"
+    lines.append(f"- **已使用**: {_highlight_if_diff(used_str, other_used_str)}")
+
+    avail_str = f"{mem_available_gb if mem_available_gb else 'N/A'} GB"
+    other_avail_str = f"{other_mem_available_gb if other_mem_available_gb else 'N/A'} GB"
+    lines.append(f"- **可用内存**: {_highlight_if_diff(avail_str, other_avail_str)}")
+
+    avail_pct_str = f"{mem_avail_percent if mem_avail_percent is not None else 'N/A'}%"
+    other_avail_pct_str = f"{other_mem_avail_percent if other_mem_avail_percent is not None else 'N/A'}%"
+    lines.append(f"- **可用率**: {_highlight_if_diff(avail_pct_str, other_avail_pct_str)}")
+
+    lines.append("")  # 空行
+
+    # 其他信息
+    lines.append("**其他信息**")
+    exec_time = env.get('execution_time', 'N/A')
+    other_exec_time = other_env.get('execution_time', 'N/A')
+    lines.append(f"- **运行时间**: {_highlight_if_diff(exec_time, other_exec_time)}")
+
+    return "\n".join(lines)
+
+
 def render_machine_info(
     env_anchor: Dict[str, Any],
     env_test: Optional[Dict[str, Any]] = None,
@@ -881,21 +1033,22 @@ def render_machine_info(
     """
     st.header("Machine Info", anchor="环境信息")
 
-    if env_test is not None:
-        # 对比模式：显示两列
+    # 如果 env_test 为 None 或两个环境相同，显示单列
+    if env_test is None or env_anchor == env_test:
+        # 单个环境模式
+        if env_anchor:
+            st.markdown(format_env_info(env_anchor))
+        else:
+            st.info("未采集到环境信息。")
+    else:
+        # 对比模式：显示两列，并标红不同的字段
         if env_anchor or env_test:
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader(anchor_label)
-                st.markdown(format_env_info(env_anchor))
+                st.markdown(_format_env_info_with_diff(env_anchor, env_test), unsafe_allow_html=True)
             with col2:
                 st.subheader(test_label)
-                st.markdown(format_env_info(env_test))
-        else:
-            st.info("未采集到环境信息。")
-    else:
-        # 单个环境模式
-        if env_anchor:
-            st.markdown(format_env_info(env_anchor))
+                st.markdown(_format_env_info_with_diff(env_test, env_anchor), unsafe_allow_html=True)
         else:
             st.info("未采集到环境信息。")
