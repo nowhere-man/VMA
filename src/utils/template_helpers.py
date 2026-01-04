@@ -22,6 +22,7 @@ def fingerprint(side: Any) -> str:
         "skip_encode": side.skip_encode,
         "source_dir": side.source_dir,
         "encoder_type": side.encoder_type,
+        "encoder_path": side.encoder_path,
         "encoder_params": side.encoder_params,
         "rate_control": side.rate_control,
         "bitrate_points": side.bitrate_points,

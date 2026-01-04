@@ -32,6 +32,7 @@ class TemplateSideConfig(BaseModel):
     skip_encode: bool = Field(default=False, description="跳过转码")
     source_dir: str = Field(..., description="源视频目录（仅扫一级）")
     encoder_type: Optional[EncoderType] = Field(None, description="编码器类型")
+    encoder_path: Optional[str] = Field(None, description="编码器二进制路径（可选，未填写则使用系统PATH中的编码器）")
     encoder_params: Optional[str] = Field(None, description="编码器参数")
     rate_control: Optional[RateControl] = Field(None, description="码控模式")
     bitrate_points: List[float] = Field(default_factory=list, description="码率点列表（支持浮点）")
