@@ -51,7 +51,20 @@
     </select>
   </div>
 
-  <div id="templatesGrid" class="hidden grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+  <div id="templatesList" class="hidden bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="w-1/4 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模板名称</th>
+          <th class="w-24 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+          <th class="w-2/5 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">描述</th>
+          <th class="w-40 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
+        </tr>
+      </thead>
+      <tbody id="templatesTableBody" class="bg-white divide-y divide-gray-200">
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
 
@@ -63,7 +76,7 @@ let selectedTemplate = null;
 async function loadTemplates() {
   document.getElementById('loading').classList.remove('hidden');
   document.getElementById('emptyState').classList.add('hidden');
-  document.getElementById('templatesGrid').classList.add('hidden');
+  document.getElementById('templatesList').classList.add('hidden');
   try {
     const [compRes, metricsRes] = await Promise.all([
       fetch('/api/templates?template_type=metrics_comparison'),
@@ -99,50 +112,55 @@ async function loadTemplates() {
 }
 
 function renderTemplates() {
-  const grid = document.getElementById('templatesGrid');
-  grid.innerHTML = '';
-  grid.classList.remove('hidden');
+  const tbody = document.getElementById('templatesTableBody');
+  const list = document.getElementById('templatesList');
+  tbody.innerHTML = '';
+  list.classList.remove('hidden');
   const filter = document.getElementById('typeFilter').value;
   const filtered = templates.filter(t => filter === 'all' || t.template_type === filter);
   filtered.forEach(tpl => {
-    const card = document.createElement('div');
-    card.className = 'template-card rounded-lg border-2 border-gray-200 bg-white p-3 shadow-sm hover:shadow-md transition-all cursor-pointer';
-    card.dataset.templateId = tpl.template_id;
-    card.dataset.templateType = tpl.template_type;
+    const row = document.createElement('tr');
+    row.className = 'template-row hover:bg-gray-100 cursor-pointer transition-colors';
+    row.dataset.templateId = tpl.template_id;
+    row.dataset.templateType = tpl.template_type;
+
     const typeLabel = tpl.template_type === 'metrics_analysis'
       ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700">Analysis</span>'
       : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Comparison</span>';
-    card.innerHTML = `
-      <div class="flex items-start justify-between mb-2">
-        <div class="flex-1 min-w-0">
-          <div class="text-base font-semibold text-gray-900 truncate">${escapeHtml(tpl.name || tpl.template_id)}</div>
-          <div class="text-xs text-gray-500">ID: ${tpl.template_id}</div>
-        </div>
+
+    row.innerHTML = `
+      <td class="px-4 py-3 w-1/4">
+        <div class="text-sm font-semibold text-gray-900">${escapeHtml(tpl.name || tpl.template_id)}</div>
+        <div class="text-xs text-gray-500 mt-0.5">ID: ${tpl.template_id}</div>
+      </td>
+      <td class="px-4 py-3 w-24">
         ${typeLabel}
-      </div>
-      <div class="text-xs text-gray-600 mb-2 line-clamp-2">${escapeHtml(tpl.description || '无描述')}</div>
-      <div class="text-xs text-gray-500">
-        ${tpl.created_at ? tpl.created_at.replace('T',' ').split('.')[0] : ''}
-      </div>
+      </td>
+      <td class="px-4 py-3 w-2/5">
+        <div class="text-sm text-gray-600">${escapeHtml(tpl.description || '无描述')}</div>
+      </td>
+      <td class="px-4 py-3 w-40">
+        <div class="text-sm text-gray-500">${tpl.created_at ? tpl.created_at.replace('T',' ').split('.')[0] : ''}</div>
+      </td>
     `;
-    card.addEventListener('click', () => selectTemplate(tpl));
-    card.addEventListener('dblclick', () => {
+
+    row.addEventListener('click', () => selectTemplate(tpl));
+    row.addEventListener('dblclick', () => {
       window.location.href = `/templates/${tpl.template_id}`;
     });
-    grid.appendChild(card);
+
+    tbody.appendChild(row);
   });
   updateActionButtons();
 }
 
 function selectTemplate(tpl) {
   selectedTemplate = tpl;
-  document.querySelectorAll('.template-card').forEach(card => {
-    if (card.dataset.templateId === tpl.template_id) {
-      card.classList.remove('border-gray-200');
-      card.classList.add('border-blue-500', 'bg-blue-50', 'ring-2', 'ring-blue-200');
+  document.querySelectorAll('.template-row').forEach(row => {
+    if (row.dataset.templateId === tpl.template_id) {
+      row.classList.add('selected');
     } else {
-      card.classList.remove('border-blue-500', 'bg-blue-50', 'ring-2', 'ring-blue-200');
-      card.classList.add('border-gray-200');
+      row.classList.remove('selected');
     }
   });
   updateActionButtons();
@@ -186,7 +204,7 @@ document.getElementById('deleteBtn').addEventListener('click', (e) => {
 document.getElementById('copyBtn').addEventListener('click', async () => {
   if (selectedTemplate) {
     const btn = document.getElementById('copyBtn');
-    const originalText = btn.textContent;
+    const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>复制中...';
     try {
@@ -197,8 +215,31 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || '复制失败');
       showToast('复制成功', 'success');
-      selectedTemplate = null;
-      loadTemplates();
+
+      // 保存新复制的模板ID
+      const newTemplateId = data.template_id;
+
+      // 重新加载模板
+      await loadTemplates();
+
+      // 自动选中新复制的模板
+      if (newTemplateId) {
+        const newTemplate = templates.find(t => t.template_id === newTemplateId);
+        if (newTemplate) {
+          selectTemplate(newTemplate);
+          // 滚动到新模板卡片
+          setTimeout(() => {
+            const newCard = document.querySelector(`[data-template-id="${newTemplateId}"]`);
+            if (newCard) {
+              newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        }
+      }
+
+      // 恢复按钮状态
+      btn.disabled = false;
+      btn.innerHTML = originalText;
     } catch (err) {
       showToast(err.message || '复制失败', 'error');
       btn.disabled = false;
@@ -253,4 +294,12 @@ typeFilter.value = initType;
 
 loadTemplates();
 </script>
+
+<style>
+  /* 选中状态的深色主题样式 */
+  .theme-dark .template-row.selected {
+    background-color: rgba(59, 130, 246, 0.2) !important; /* 半透明蓝色 */
+    border-left: 4px solid #3b82f6 !important; /* 蓝色边框 */
+  }
+</style>
 {% endblock %}
