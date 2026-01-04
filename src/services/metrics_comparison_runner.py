@@ -209,10 +209,8 @@ async def run_template(
     analysis_root = Path(job.job_dir) / "analysis" if job else Path(template.template_dir) / "analysis"
     analysis_root.mkdir(parents=True, exist_ok=True)
 
-    report_entries = []
-    bd_metrics = []
-
-    for src in ordered_sources:
+    # 并发执行所有源文件的分析
+    async def _analyze_source(src: SourceInfo) -> Dict[str, Any]:
         key = src.path.stem
         anchor_info = anchor_outputs.get(key)
         test_info = test_outputs.get(key)
@@ -316,19 +314,17 @@ async def run_template(
             r2, m2 = zip(*sorted(pts_b, key=lambda x: x[0]))
             return _bd_metrics(list(r1), list(m1), list(r2), list(m2))
 
-        bd_metrics.append(
-            {
-                "source": src.path.name,
-                "bd_rate_psnr": _pair_curves("psnr"),
-                "bd_rate_ssim": _pair_curves("ssim"),
-                "bd_rate_vmaf": _pair_curves("vmaf"),
-                "bd_rate_vmaf_neg": _pair_curves("vmaf_neg"),
-                "bd_psnr": _pair_metrics("psnr"),
-                "bd_ssim": _pair_metrics("ssim"),
-                "bd_vmaf": _pair_metrics("vmaf"),
-                "bd_vmaf_neg": _pair_metrics("vmaf_neg"),
-            }
-        )
+        bd_metric_entry = {
+            "source": src.path.name,
+            "bd_rate_psnr": _pair_curves("psnr"),
+            "bd_rate_ssim": _pair_curves("ssim"),
+            "bd_rate_vmaf": _pair_curves("vmaf"),
+            "bd_rate_vmaf_neg": _pair_curves("vmaf_neg"),
+            "bd_psnr": _pair_metrics("psnr"),
+            "bd_ssim": _pair_metrics("ssim"),
+            "bd_vmaf": _pair_metrics("vmaf"),
+            "bd_vmaf_neg": _pair_metrics("vmaf_neg"),
+        }
 
         # 将性能数据添加到 summary 的 encoded 列表中
         anchor_perf_list = anchor_perfs.get(key, [])
@@ -350,13 +346,25 @@ async def run_template(
                     if perf_dict:  # 只有有数据时才添加
                         enc_item["performance"] = perf_dict
 
-        report_entries.append(
-            {
+        return {
+            "entry": {
                 "source": src.path.name,
                 "anchor": anchor_summary,
                 "test": test_summary,
-            }
-        )
+            },
+            "bd_metric": bd_metric_entry,
+        }
+
+    # 并发执行所有源文件的分析
+    analyze_tasks = [_analyze_source(src) for src in ordered_sources]
+    results = await asyncio.gather(*analyze_tasks)
+
+    # 重组结果
+    report_entries = []
+    bd_metrics = []
+    for result in results:
+        report_entries.append(result["entry"])
+        bd_metrics.append(result["bd_metric"])
 
     result: Dict[str, Any] = {
         "kind": "template_metrics",

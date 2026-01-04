@@ -177,8 +177,8 @@ class MetricsAnalysisRunner:
         analysis_root = Path(job.job_dir) / "metrics_analysis" if job else Path(template.template_dir) / "metrics_analysis"
         analysis_root.mkdir(parents=True, exist_ok=True)
 
-        entries: List[Dict[str, Any]] = []
-        for src in ordered_sources:
+        # 并发执行所有源文件的分析
+        async def _analyze_source(src: SourceInfo) -> Dict[str, Any]:
             output_info = encoded_outputs.get(src.path.stem)
             if not output_info:
                 raise ValueError(f"缺少码流: {src.path.name}")
@@ -207,7 +207,10 @@ class MetricsAnalysisRunner:
                     if perf_dict:
                         enc_item["performance"] = perf_dict
 
-            entries.append(entry)
+            return entry
+
+        analyze_tasks = [_analyze_source(src) for src in ordered_sources]
+        entries = await asyncio.gather(*analyze_tasks)
 
         result = {
             "kind": "metrics_analysis_single",
