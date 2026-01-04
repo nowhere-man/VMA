@@ -7,7 +7,7 @@
   <div class="max-w-4xl w-full mx-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
     <div class="px-8 py-10 space-y-5">
     <div class="text-center">
-      <h1 class="text-3xl md:text-4xl font-semibold text-white">Video Metrics Analyzer</h1>
+      <h1 class="text-3xl md:text-4xl font-semibold text-white">🔎 Video Metrics Analyzer</h1>
     </div>
 
     <div class="h-2"></div>
@@ -46,11 +46,12 @@
 
     <div class="h-px bg-white/10"></div>
 
-    <!-- 第三行：模板管理、任务管理、报告管理 -->
+    <!-- 第二行：模板管理、任务管理、报告管理 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <a href="/templates" class="group rounded-2xl bg-white/5 border border-white/10 p-5 flex items-center justify-between hover:bg-white/10 hover:border-white/30 transition">
         <div class="text-left">
-          <h3 class="text-anchor font-semibold text-white">模板管理</h3>
+          <h3 class="text-lg font-semibold text-white">模板管理</h3>
+          <p class="text-xs text-gray-400 mt-1">创建和管理分析模板</p>
         </div>
         <div class="h-10 w-10 rounded-full bg-purple-400/20 flex items-center justify-center text-purple-200">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16v4H4zM4 13h7v6H4zM16 13h4v6h-4z"/></svg>
@@ -58,7 +59,8 @@
       </a>
       <a href="/jobs" class="group rounded-2xl bg-white/5 border border-white/10 p-5 flex items-center justify-between hover:bg-white/10 hover:border-white/30 transition">
         <div class="text-left">
-          <h3 class="text-anchor font-semibold text-white">任务管理</h3>
+          <h3 class="text-lg font-semibold text-white">任务管理</h3>
+          <p class="text-xs text-gray-400 mt-1">查看和管理任务队列</p>
         </div>
         <div class="h-10 w-10 rounded-full bg-amber-400/20 flex items-center justify-center text-amber-200">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6a2 2 0 012 2v12l-5-2-5 2V7a2 2 0 012-2z"/></svg>
@@ -66,10 +68,26 @@
       </a>
       <a href="{{ reports_base_url }}" class="group rounded-2xl bg-white/5 border border-white/10 p-5 flex items-center justify-between hover:bg-white/10 hover:border-white/30 transition">
         <div class="text-left">
-          <h3 class="text-anchor font-semibold text-white">报告管理</h3>
+          <h3 class="text-lg font-semibold text-white">报告管理</h3>
+          <p class="text-xs text-gray-400 mt-1">浏览分析报告</p>
         </div>
         <div class="h-10 w-10 rounded-full bg-emerald-400/20 flex items-center justify-center text-emerald-200">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h14M3 10h9M3 15h14M3 20h9"/></svg>
+        </div>
+      </a>
+    </div>
+
+    <div class="h-px bg-white/10"></div>
+
+    <!-- 第三行：定时任务 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <a href="/schedules" class="group rounded-2xl bg-white/5 border border-white/10 p-5 flex items-center justify-between hover:bg-white/10 hover:border-white/30 transition">
+        <div class="text-left">
+          <h3 class="text-lg font-semibold text-white">定时任务</h3>
+          <p class="text-xs text-gray-400 mt-1">定时执行模板任务</p>
+        </div>
+        <div class="h-10 w-10 rounded-full bg-pink-400/20 flex items-center justify-center text-pink-200">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         </div>
       </a>
     </div>

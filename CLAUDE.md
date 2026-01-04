@@ -17,13 +17,14 @@ FastAPI (8078)          Streamlit (8081)
 生成 JSON 数据           读取 JSON + 渲染
 ```
 
-### 三大功能模块
+### 四大功能模块
 
 | 模块 | JobMode | 处理器 | 输出文件 | 用途 |
 |------|---------|--------|----------|------|
 | Stream Analysis | `bitstream_analysis` | `stream_analysis_runner.py` | `stream_analysis.json` | 分析已有编码视频的质量 |
 | Metrics Analysis | `metrics_analysis` | `metrics_analysis_runner.py` | `metrics_analysis.json` | 批量编码源视频+质量分析 |
 | Metrics Comparison | `metrics_comparison` | `metrics_comparison_runner.py` | `metrics_comparison.json` | Anchor vs Test 对比分析 |
+| **Schedule** | N/A | `scheduler.py` + `schedule_runner.py` | N/A | 定时执行模板+自动编译编码器 |
 
 ---
 
@@ -372,6 +373,372 @@ async def _encode_side(...) -> Tuple[Dict, Dict]:
 - 并发数过高可能导致资源竞争（CPU、内存、磁盘 I/O）
 - 建议根据机器性能合理设置（如物理核心数的 50-80%）
 - 默认值为 1 保证稳定性和兼容性
+
+---
+
+## Schedule 定时任务（第四大功能模块）
+
+### 功能概述
+
+**用途**：定时执行模板任务，每次执行前自动从 Git 仓库编译指定编码器
+
+**核心特性**：
+- 自动从 Git 仓库下载并编译编码器
+- 灵活的调度策略（不重复/每天/每周/每月）
+- 支持路径覆盖（Schedule 指定的编码器路径优先）
+- 完整的执行历史和构建日志
+- 任务命名格式：`Schedule: <schedule_name> - <template_name>`
+
+### 数据模型
+
+**文件**：`src/models/schedule.py`
+
+#### ScheduleMetadata
+```python
+class ScheduleMetadata(BaseModel):
+    schedule_id: str                        # Schedule ID
+    name: str                                # Schedule 名称
+    description: Optional[str]               # 描述
+
+    # 编码器配置
+    encoder_type: str                        # ffmpeg/x264/x265/vvenc
+    encoder_config: EncoderConfig            # 仓库、分支、构建脚本、二进制路径
+
+    # 模板配置
+    template_id: str                          # 关联的模板 ID
+    template_type: str                        # metrics_analysis/metrics_comparison
+    template_name: str                        # 模板名称
+
+    # 调度配置
+    start_time: datetime                      # 首次执行时间
+    repeat: ScheduleRepeat                     # none/daily/weekly/monthly
+
+    # 状态
+    status: ScheduleStatus                     # active/paused/disabled
+
+    # 执行信息
+    last_execution: Optional[datetime]         # 最近执行时间
+    last_execution_status: Optional[str]       # success/failed
+    last_execution_job_id: Optional[str]       # 最近执行的任务 ID
+    next_execution: Optional[datetime]          # 下次执行时间
+```
+
+#### EncoderConfig
+```python
+class EncoderConfig(BaseModel):
+    repo: str         # Git 仓库地址
+    branch: str       # 分支名
+    build_script: str # 构建脚本（在仓库根目录执行）
+    binary_path: str  # 构建后的二进制路径（相对于仓库根目录）
+```
+
+#### ScheduleExecution
+```python
+class ScheduleExecution(BaseModel):
+    execution_id: str       # 执行 ID
+    schedule_id: str        # Schedule ID
+    executed_at: datetime    # 执行时间
+    job_id: str             # 生成的任务 ID
+    build_status: str       # 构建状态 (success/failed/skipped)
+    build_log_path: str     # 构建日志路径（相对于 schedule 目录）
+    error_message: str      # 错误信息
+```
+
+### 存储结构
+
+```
+data/
+  schedules/
+    {schedule_id}/
+      schedule.yml              # Schedule 元数据
+      executions.yml            # 执行历史（最近 100 条）
+      workspace/                # 构建工作区（每次清理）
+        repo/                   # 代码仓库（每次删除重建）
+      logs/
+        build-{timestamp}.log   # 构建日志
+```
+
+**schedule.yml 示例**：
+```yaml
+schedule_id: "sched_abc123"
+name: "Nightly FFmpeg Test"
+encoder_type: "ffmpeg"
+encoder_config:
+  repo: "https://git.ffmpeg.org/ffmpeg.git"
+  branch: "master"
+  build_script: "configure --enable-static && make -j$(nproc)"
+  binary_path: "ffmpeg"
+template_id: "tpl_xyz789"
+template_type: "metrics_comparison"
+template_name: "FFmpeg Preset Comparison"
+start_time: "2025-01-01T02:30:00"
+repeat: "daily"
+status: "active"
+created_at: "2025-01-01T10:00:00"
+last_execution: "2025-01-01T02:30:00"
+last_execution_status: "success"
+next_execution: "2025-01-02T02:30:00"
+```
+
+### 核心服务
+
+#### 1. Schedule 存储服务
+**文件**：`src/services/schedule_storage.py`
+
+```python
+class ScheduleStorage:
+    def create_schedule(schedule: ScheduleMetadata) -> None
+    def get_schedule(schedule_id: str) -> Optional[ScheduleMetadata]
+    def list_schedules() -> List[ScheduleMetadata]
+    def update_schedule(schedule_id: str, schedule: ScheduleMetadata) -> None
+    def delete_schedule(schedule_id: str) -> None
+
+    def add_execution(schedule_id: str, execution: ScheduleExecution) -> None
+    def list_executions(schedule_id: str, limit: int = 100) -> List[ScheduleExecution]
+
+    def save_build_log(schedule_id: str, log_filename: str, content: str) -> None
+    def get_build_log(schedule_id: str, log_filename: str) -> Optional[str]
+```
+
+#### 2. 编码器构建服务
+**文件**：`src/services/builder.py`
+
+**功能**：
+- 依赖检查：gcc, cmake, git, nasm
+- Git clone：使用 `--depth=1 --single-branch --branch` 最小化下载
+- 执行构建脚本
+- 验证二进制文件存在性和可执行性
+
+**核心方法**：
+```python
+class EncoderBuilder:
+    async def build(
+        schedule_id: str,
+        encoder_config: EncoderConfig,
+        log_file: Path,
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        构建编码器
+
+        Returns:
+            (success, binary_path, error_message)
+        """
+```
+
+**构建流程**：
+1. 检查构建依赖
+2. 清理并创建工作区 `data/schedules/{schedule_id}/workspace`
+3. Clone 指定分支（depth=1, single-branch）
+4. 执行构建脚本
+5. 验证二进制存在
+
+#### 3. Schedule 执行服务
+**文件**：`src/services/schedule_runner.py`
+
+**功能**：
+- 执行编码器构建
+- 加载模板并覆盖 `encoder_path`
+- 创建和执行任务
+- 记录执行历史
+
+**核心方法**：
+```python
+class ScheduleRunner:
+    async def execute(schedule: ScheduleMetadata) -> str:
+        """
+        执行 Schedule，返回 job_id
+
+        流程：
+        1. 构建编码器
+        2. 加载模板
+        3. 覆盖 encoder_path（Schedule 指定的路径优先）
+        4. 创建 Job
+        5. 执行 Job
+        6. 记录执行历史
+        """
+```
+
+**路径覆盖机制**：
+```python
+# 如果 Schedule 指定的二进制路径与模板中的 encoder_path 不一致
+# 使用 Schedule 指定的路径覆盖模板路径
+
+def _override_encoder_path(template, binary_path: str):
+    if template.metadata.template_type == "metrics_analysis":
+        template.metadata.anchor.encoder_path = binary_path
+    else:
+        template.metadata.anchor.encoder_path = binary_path
+        if template.metadata.test:
+            template.metadata.test.encoder_path = binary_path
+```
+
+#### 4. 调度器服务
+**文件**：`src/services/scheduler.py`
+
+**技术栈**：APScheduler 3.10+ (AsyncIOScheduler)
+
+**核心功能**：
+- 启动时加载所有 active 的 Schedules
+- 支持 Cron 和 Date 两种触发器
+- 暂停/恢复/立即执行
+- 自动计算下次执行时间
+
+**Trigger 规则**：
+```python
+# 不重复（一次性）
+DateTrigger(run_date=schedule.start_time)
+
+# 每天
+CronTrigger(hour=start_time.hour, minute=start_time.minute)
+
+# 每周
+CronTrigger(
+    day_of_week=start_time.weekday(),
+    hour=start_time.hour,
+    minute=start_time.minute,
+)
+
+# 每月
+CronTrigger(
+    day=start_time.day,
+    hour=start_time.hour,
+    minute=start_time.minute,
+)
+```
+
+**全局单例**：
+```python
+from src.services.scheduler import scheduler_service
+
+# 启动（main.py 中）
+await scheduler_service.start()
+
+# 关闭
+await scheduler_service.shutdown()
+```
+
+### API 端点
+
+**文件**：`src/api/schedules.py`
+
+#### 基础 CRUD
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/schedules` | 创建 Schedule |
+| GET | `/api/schedules` | 列出所有 Schedules |
+| GET | `/api/schedules/{schedule_id}` | 获取 Schedule 详情 |
+| PUT | `/api/schedules/{schedule_id}` | 编辑 Schedule（不能修改 encoder_config） |
+| DELETE | `/api/schedules/{schedule_id}` | 删除 Schedule |
+
+#### 操作端点
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/schedules/{schedule_id}/pause` | 暂停 Schedule |
+| POST | `/api/schedules/{schedule_id}/resume` | 恢复 Schedule |
+| POST | `/api/schedules/{schedule_id}/trigger` | 立即执行一次 |
+| POST | `/api/schedules/{schedule_id}/copy` | 复制 Schedule |
+
+#### 执行历史
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/schedules/{schedule_id}/executions` | 获取执行历史 |
+| GET | `/api/schedules/{schedule_id}/executions/{execution_id}` | 获取单次执行详情 |
+| GET | `/api/schedules/{schedule_id}/logs/{log_filename}` | 获取构建日志 |
+
+#### 模板筛选
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/templates?encoder_type={type}` | 筛选 Metrics Comparison 模板 |
+| GET | `/api/metrics-analysis/templates?encoder_type={type}` | 筛选 Metrics Analysis 模板 |
+
+### 前端页面
+
+| 页面 | 路由 | 功能 |
+|------|------|------|
+| Schedule 列表 | `/schedules` | 显示所有 Schedule，支持操作 |
+| 创建 Schedule | `/schedules/new` | 创建新 Schedule |
+| Schedule 详情 | `/schedules/{schedule_id}` | 查看完整信息、执行历史、构建日志 |
+| 编辑 Schedule | `/schedules/{schedule_id}/edit` | 编辑 Schedule（不能修改编码器配置） |
+
+### 路径冲突提醒机制
+
+**触发条件**：模板中的 `encoder_path` 与 Schedule 指定的二进制路径不一致
+
+**UI 表现**：
+```
+⚠️ 路径冲突提醒
+模板中的编码器路径：/usr/local/bin/ffmpeg
+Schedule 指定的二进制路径：/root/ffmpeg-build/ffmpeg
+将使用 Schedule 指定的路径
+☐ 我已知晓，继续创建
+```
+
+**强制确认**：
+- 用户必须勾选复选框才能提交
+- 如果路径一致，不显示此提醒
+
+### 使用流程
+
+#### 1. 创建 Schedule
+1. 访问首页，点击"定时任务"
+2. 点击"创建 Schedule"
+3. 填写编码器配置：
+   - 编码器类型（ffmpeg/x264/x265/vvenc）
+   - Git 仓库地址
+   - 分支名
+   - 构建脚本
+   - 二进制路径（相对于仓库根目录）
+4. 选择模板：
+   - 模板类型
+   - 模板（自动筛选匹配编码器类型的模板）
+   - 如果路径不一致，确认冲突提醒
+5. 设置调度：
+   - 执行时间（精确到分钟）
+   - 重复周期（不重复/每天/每周/每月）
+6. 保存
+
+#### 2. 管理 Schedule
+- **列表页**：查看所有 Schedule，支持暂停/恢复/触发/复制/删除
+- **详情页**：查看完整信息、执行历史、构建日志
+- **编辑**：修改名称、描述、模板、时间、周期（编码器配置不可修改）
+
+#### 3. 执行流程
+每次触发时自动执行：
+1. 清理工作区（删除旧代码）
+2. Git clone 指定分支（depth=1, single-branch）
+3. 执行构建脚本
+4. 验证二进制存在
+5. 加载模板并覆盖 `encoder_path`
+6. 创建任务（任务名：`Schedule: <schedule_name> - <template_name>`）
+7. 执行任务（复用 metrics_analysis_runner 或 metrics_comparison_runner）
+8. 记录执行历史和构建日志
+
+### ⚠️ 注意事项
+
+1. **构建依赖**：系统必须已安装 gcc, cmake, git, nasm
+2. **Git 策略**：每次删除旧代码重新 clone（不保留缓存）
+3. **路径格式**：二进制路径相对于仓库根目录
+4. **任务命名**：生成的任务不添加日期时间前缀（与手动创建的任务区分方式：通过 `schedule_id` 关联）
+5. **失败处理**：构建失败时创建失败任务，在任务管理页显示错误原因
+6. **资源占用**：构建编码器可能消耗大量 CPU 和磁盘 I/O
+7. **调度器持久化**：APScheduler 不支持持久化，重启后重新加载 active 的 Schedules
+8. **一次性任务**：执行一次后自动变为 disabled 状态
+
+### 编码器路径字段说明
+
+**Bug 修复**：在实现 Schedule 功能时，修复了模板中 `encoder_path` 字段未被使用的问题
+
+**字段含义**：
+- **未填写**：使用系统 PATH 中的编码器（如 `ffmpeg`）
+- **已填写**：使用指定的绝对路径（如 `/usr/local/bin/ffmpeg`）
+
+**使用位置**：
+- Metrics Analysis 模板：`anchor.encoder_path`
+- Metrics Comparison 模板：`anchor.encoder_path` 和 `test.encoder_path`
+
+**Schedule 覆盖机制**：
+- Schedule 执行时，无论模板中 `encoder_path` 是否填写
+- 都会使用 Schedule 构建的二进制路径覆盖模板的 `encoder_path`
 
 ---
 

@@ -97,6 +97,7 @@ async def _encode(config: TemplateSideConfig, sources: List[SourceInfo], job=Non
                 val=val,
                 src=src,
                 output=output_path,
+                encoder_path=config.encoder_path,
                 shortest_size=config.shortest_size,
                 target_fps=config.target_fps,
             )

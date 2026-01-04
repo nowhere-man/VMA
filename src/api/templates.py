@@ -97,14 +97,24 @@ async def get_template(template_id: str) -> dict:
 async def list_templates(
     limit: Optional[int] = None,
     template_type: Optional[TemplateType] = None,
+    encoder_type: Optional[str] = None,
 ) -> List[TemplateListItem]:
     """
     列出所有模板
 
-    - **encoder_type**: 可选的编码器类型过滤
+    - **encoder_type**: 可选的编码器类型过滤（ffmpeg/x264/x265/vvenc）
+    - **template_type**: 可选的模板类型过滤
     - **limit**: 可选的数量限制
     """
     templates = template_storage.list_templates(limit=limit, template_type=template_type)
+
+    # 额外的 encoder_type 过滤（在存储层过滤后进行二次过滤）
+    if encoder_type:
+        templates = [
+            t for t in templates
+            if t.metadata.anchor.encoder_type == encoder_type or
+            (t.metadata.test and t.metadata.test.encoder_type == encoder_type)
+        ]
 
     return [
         TemplateListItem(

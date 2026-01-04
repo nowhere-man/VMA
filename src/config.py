@@ -25,6 +25,8 @@ class Settings(BaseModel):
     jobs_root_dir: Path
     # 模板存储（持久化模板）
     templates_root_dir: Path
+    # Schedule 存储
+    schedules_root_dir: Path
 
     # FFmpeg 配置
     ffmpeg_path: Optional[str] = None  # FFmpeg 目录路径，如 /usr/local/ffmpeg/bin

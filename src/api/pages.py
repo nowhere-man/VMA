@@ -196,3 +196,36 @@ async def template_view_page(request: Request, template_id: str) -> HTMLResponse
 async def bitstream_analysis_page(request: Request) -> HTMLResponse:
     """码流分析页面"""
     return templates.TemplateResponse("bitstream_analysis.html", _base_context(request))
+
+
+# Schedule 页面路由
+
+@router.get("/schedules", response_class=HTMLResponse)
+async def schedules_list_page(request: Request) -> HTMLResponse:
+    """Schedule 列表页面"""
+    return templates.TemplateResponse("schedules_list.html", _base_context(request))
+
+
+@router.get("/schedules/new", response_class=HTMLResponse)
+async def create_schedule_page(request: Request) -> HTMLResponse:
+    """创建 Schedule 页面"""
+    context = _base_context(request)
+    context.update({"schedule_id": None})
+    return templates.TemplateResponse("schedule_form.html", context)
+
+
+@router.get("/schedules/{schedule_id}", response_class=HTMLResponse)
+async def schedule_detail_page(request: Request, schedule_id: str) -> HTMLResponse:
+    """Schedule 详情页面"""
+    context = _base_context(request)
+    context.update({"schedule_id": schedule_id})
+    return templates.TemplateResponse("schedule_detail.html", context)
+
+
+@router.get("/schedules/{schedule_id}/edit", response_class=HTMLResponse)
+async def edit_schedule_page(request: Request, schedule_id: str) -> HTMLResponse:
+    """编辑 Schedule 页面"""
+    context = _base_context(request)
+    context.update({"schedule_id": schedule_id})
+    return templates.TemplateResponse("schedule_form.html", context)
+

@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑 Schedule' if schedule_id else '创建 Schedule' }} - VMA{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <!-- 页面头部 -->
+  <div class="bg-white rounded-lg shadow-sm p-6">
+    <h1 class="text-2xl font-bold text-gray-900">{{ '编辑 Schedule' if schedule_id else '创建 Schedule' }}</h1>
+    <p class="mt-1 text-sm text-gray-600">配置定时执行任务，自动编译编码器</p>
+  </div>
+
+  <form id="scheduleForm" class="bg-white rounded-lg shadow-sm p-6 space-y-6">
+    <!-- 基本信息 -->
+    <div class="space-y-4">
+      <h2 class="text-lg font-semibold text-gray-900">基本信息</h2>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">名称<span class="text-red-500">*</span></label>
+        <input id="name" name="name" required maxlength="100" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+        <input id="description" name="description" maxlength="500" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+      </div>
+    </div>
+
+    <!-- 编码器配置 -->
+    <div class="space-y-4 border-t pt-6">
+      <h2 class="text-lg font-semibold text-gray-900">编码器配置</h2>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">编码器类型<span class="text-red-500">*</span></label>
+        <select id="encoder_type" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required>
+          <option value="">请选择</option>
+          <option value="ffmpeg">FFmpeg</option>
+          <option value="x264">x264</option>
+          <option value="x265">x265</option>
+          <option value="vvenc">VVenC</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">仓库地址<span class="text-red-500">*</span></label>
+        <input id="repo" name="repo" required class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="https://git.ffmpeg.org/ffmpeg.git" />
+        <p class="text-xs text-gray-500 mt-1">Git 仓库地址</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">分支<span class="text-red-500">*</span></label>
+        <input id="branch" name="branch" required class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="master" />
+        <p class="text-xs text-gray-500 mt-1">Git 分支名</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">构建脚本<span class="text-red-500">*</span></label>
+        <textarea id="build_script" name="build_script" required rows="3" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="configure --enable-static && make -j$(nproc)"></textarea>
+        <p class="text-xs text-gray-500 mt-1">在仓库根目录执行的构建脚本</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">二进制路径<span class="text-red-500">*</span></label>
+        <input id="binary_path" name="binary_path" required class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="ffmpeg" />
+        <p class="text-xs text-gray-500 mt-1">构建后的二进制文件路径（相对于代码仓根目录）</p>
+      </div>
+    </div>
+
+    <!-- 模板选择 -->
+    <div class="space-y-4 border-t pt-6">
+      <h2 class="text-lg font-semibold text-gray-900">模板选择</h2>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">模板类型<span class="text-red-500">*</span></label>
+        <select id="template_type" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required>
+          <option value="">请选择</option>
+          <option value="metrics_analysis">Metrics 分析</option>
+          <option value="metrics_comparison">Metrics 对比</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">模板<span class="text-red-500">*</span></label>
+        <select id="template_id" name="template_id" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required>
+          <option value="">请先选择模板类型和编码器类型</option>
+        </select>
+        <p id="templateInfo" class="text-xs text-gray-500 mt-1"></p>
+      </div>
+
+      <!-- 路径冲突提醒 -->
+      <div id="pathWarning" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div class="flex">
+          <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-yellow-800">路径冲突提醒</h3>
+            <div class="mt-2 text-sm text-yellow-700">
+              <p>模板中的编码器路径：<span id="templatePath" class="font-mono"></span></p>
+              <p>Schedule 指定的二进制路径：<span id="schedulePath" class="font-mono"></span></p>
+              <p class="mt-1 font-medium">将使用 Schedule 指定的路径</p>
+              <div class="mt-3">
+                <label class="flex items-center">
+                  <input type="checkbox" id="pathConfirmed" class="h-4 w-4 text-yellow-600 border-gray-300 rounded" />
+                  <span class="ml-2 text-sm">我已知晓，继续创建</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 调度配置 -->
+    <div class="space-y-4 border-t pt-6">
+      <h2 class="text-lg font-semibold text-gray-900">调度配置</h2>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">执行时间<span class="text-red-500">*</span></label>
+        <input id="start_time" name="start_time" type="datetime-local" required class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
+        <p class="text-xs text-gray-500 mt-1">精确到分钟</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">重复周期<span class="text-red-500">*</span></label>
+        <select id="repeat" name="repeat" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" required>
+          <option value="none">不重复</option>
+          <option value="daily">每天</option>
+          <option value="weekly">每周</option>
+          <option value="monthly">每月</option>
+        </select>
+        <p class="text-xs text-gray-500 mt-1">不重复：仅在指定时间执行一次；每天/每周/每月：按周期重复执行</p>
+      </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="flex items-center justify-between pt-4 border-t">
+      <div id="formError" class="text-sm text-red-600"></div>
+      <div class="space-x-3">
+        <a href="/schedules" class="text-sm text-gray-600 hover:text-gray-900">返回</a>
+        <button id="submitBtn" type="submit" class="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">保存</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+const scheduleId = "{{ schedule_id or '' }}";
+const form = document.getElementById('scheduleForm');
+const errBox = document.getElementById('formError');
+const submitBtn = document.getElementById('submitBtn');
+
+// 模板缓存
+let templatesCache = {};
+
+// 加载模板列表
+async function loadTemplates() {
+  const templateType = document.getElementById('template_type').value;
+  const encoderType = document.getElementById('encoder_type').value;
+
+  if (!templateType || !encoderType) {
+    return;
+  }
+
+  try {
+    let url;
+    if (templateType === 'metrics_comparison') {
+      url = `/api/templates?encoder_type=${encoderType}`;
+    } else {
+      url = `/api/metrics-analysis/templates?encoder_type=${encoderType}`;
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('加载模板失败');
+
+    const templates = await res.json();
+    templatesCache[templateType] = templates;
+
+    const select = document.getElementById('template_id');
+    select.innerHTML = '<option value="">请选择模板</option>';
+
+    templates.forEach(tpl => {
+      const option = document.createElement('option');
+      option.value = tpl.template_id;
+      option.textContent = tpl.name;
+      select.appendChild(option);
+    });
+
+    // 如果有已选的模板，重新选中
+    if (window.selectedTemplateId) {
+      select.value = window.selectedTemplateId;
+    }
+  } catch (error) {
+    console.error('加载模板失败:', error);
+  }
+}
+
+// 检查路径冲突
+async function checkPathConflict() {
+  const templateId = document.getElementById('template_id').value;
+  const binaryPath = document.getElementById('binary_path').value.trim();
+  const warningDiv = document.getElementById('pathWarning');
+  const templatePathSpan = document.getElementById('templatePath');
+  const schedulePathSpan = document.getElementById('schedulePath');
+  const checkbox = document.getElementById('pathConfirmed');
+
+  if (!templateId || !binaryPath) {
+    warningDiv.classList.add('hidden');
+    return;
+  }
+
+  try {
+    const templateType = document.getElementById('template_type').value;
+    let url;
+    if (templateType === 'metrics_comparison') {
+      url = `/api/templates/${templateId}`;
+    } else {
+      url = `/api/metrics-analysis/templates/${templateId}`;
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) return;
+
+    const template = await res.json();
+    const templateEncoderPath = template.anchor?.encoder_path;
+
+    if (templateEncoderPath && templateEncoderPath !== binaryPath) {
+      // 有路径冲突
+      templatePathSpan.textContent = templateEncoderPath;
+      schedulePathSpan.textContent = binaryPath;
+      warningDiv.classList.remove('hidden');
+      checkbox.checked = false;
+    } else {
+      warningDiv.classList.add('hidden');
+    }
+  } catch (error) {
+    console.error('检查路径冲突失败:', error);
+  }
+}
+
+// 事件监听
+document.getElementById('template_type').addEventListener('change', loadTemplates);
+document.getElementById('encoder_type').addEventListener('change', () => {
+  loadTemplates();
+  checkPathConflict();
+});
+document.getElementById('template_id').addEventListener('change', checkPathConflict);
+document.getElementById('binary_path').addEventListener('change', checkPathConflict);
+
+// 加载现有 Schedule（编辑模式）
+async function loadSchedule() {
+  if (!scheduleId) return;
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}`);
+    if (!res.ok) throw new Error('加载失败');
+
+    const schedule = await res.json();
+
+    document.getElementById('name').value = schedule.name || '';
+    document.getElementById('description').value = schedule.description || '';
+    document.getElementById('encoder_type').value = schedule.encoder_type || '';
+    document.getElementById('repo').value = schedule.encoder_config?.repo || '';
+    document.getElementById('branch').value = schedule.encoder_config?.branch || '';
+    document.getElementById('build_script').value = schedule.encoder_config?.build_script || '';
+    document.getElementById('binary_path').value = schedule.encoder_config?.binary_path || '';
+    document.getElementById('template_type').value = schedule.template_type || '';
+
+    // 加载模板后再设置 template_id
+    await loadTemplates();
+    window.selectedTemplateId = schedule.template_id;
+    document.getElementById('template_id').value = schedule.template_id;
+
+    // 时间格式转换
+    if (schedule.start_time) {
+      const date = new Date(schedule.start_time);
+      const offset = date.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(date - offset)).toISOString().slice(0, 16);
+      document.getElementById('start_time').value = localISOTime;
+    }
+
+    document.getElementById('repeat').value = schedule.repeat || 'none';
+
+  } catch (error) {
+    errBox.textContent = error.message || '加载失败';
+  }
+}
+
+// 表单提交
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errBox.textContent = '';
+  submitBtn.disabled = true;
+
+  try {
+    // 检查路径冲突确认
+    const warningDiv = document.getElementById('pathWarning');
+    const checkbox = document.getElementById('pathConfirmed');
+    if (!warningDiv.classList.contains('hidden') && !checkbox.checked) {
+      errBox.textContent = '请确认路径冲突提醒';
+      submitBtn.disabled = false;
+      return;
+    }
+
+    // 收集表单数据
+    const payload = {
+      name: document.getElementById('name').value.trim(),
+      description: document.getElementById('description').value.trim() || null,
+      encoder_type: document.getElementById('encoder_type').value,
+      encoder_config: {
+        repo: document.getElementById('repo').value.trim(),
+        branch: document.getElementById('branch').value.trim(),
+        build_script: document.getElementById('build_script').value.trim(),
+        binary_path: document.getElementById('binary_path').value.trim(),
+      },
+      template_type: document.getElementById('template_type').value,
+      template_id: document.getElementById('template_id').value,
+      start_time: new Date(document.getElementById('start_time').value).toISOString(),
+      repeat: document.getElementById('repeat').value,
+    };
+
+    // 提交
+    const method = scheduleId ? 'PUT' : 'POST';
+    const url = scheduleId ? `/api/schedules/${scheduleId}` : '/api/schedules';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || '保存失败');
+
+    window.location.href = '/schedules';
+
+  } catch (error) {
+    errBox.textContent = error.message || '保存失败';
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+// 页面加载时执行
+loadSchedule();
+</script>
+{% endblock %}

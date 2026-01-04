@@ -14,6 +14,9 @@ nanoid>=2.0.0
 # CPU utilization tracking
 psutil>=5.9.0
 
+# Scheduling
+apscheduler>=3.10.0
+
 # Report Generation
 streamlit>=1.28.0
 plotly>=5.17.0

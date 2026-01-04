@@ -55,8 +55,25 @@ async def create_metrics_template(request: CreateMetricsTemplateRequest) -> dict
     response_model=List[MetricsTemplateListItem],
     summary="列出 Metrics 分析模板",
 )
-async def list_metrics_templates(limit: Optional[int] = None) -> List[MetricsTemplateListItem]:
+async def list_metrics_templates(
+    limit: Optional[int] = None,
+    encoder_type: Optional[str] = None,
+) -> List[MetricsTemplateListItem]:
+    """
+    列出 Metrics 分析模板
+
+    - **encoder_type**: 可选的编码器类型过滤（ffmpeg/x264/x265/vvenc）
+    - **limit**: 可选的数量限制
+    """
     templates = template_storage.list_templates(limit=limit, template_type=TemplateType.METRICS_ANALYSIS)
+
+    # encoder_type 过滤
+    if encoder_type:
+        templates = [
+            t for t in templates
+            if t.metadata.anchor.encoder_type == encoder_type
+        ]
+
     items: List[MetricsTemplateListItem] = []
     for t in templates:
         items.append(

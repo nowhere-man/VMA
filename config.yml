@@ -3,6 +3,7 @@ fastapi_port: 8080
 streamlit_port: 8081
 jobs_root_dir: ./data/jobs
 templates_root_dir: ./data/templates
+schedules_root_dir: ./data/schedules
 reports_root_dir: ./data/reports
 ffmpeg_path:
 ffmpeg_timeout: 600

@@ -226,6 +226,7 @@ async def _encode_side(
                 val,
                 src,
                 out_path,
+                encoder_path=side.encoder_path,
                 shortest_size=side.shortest_size,
                 target_fps=side.target_fps,
             )

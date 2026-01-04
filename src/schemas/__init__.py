@@ -7,6 +7,15 @@ from src.schemas.metrics_analysis import (
     UpdateMetricsTemplateRequest,
     ValidateMetricsTemplateResponse,
 )
+from src.schemas.schedules import (
+    CreateScheduleRequest,
+    CreateScheduleResponse,
+    ExecutionDetailResponse,
+    ExecutionListItem,
+    ScheduleDetailResponse,
+    ScheduleListItem,
+    UpdateScheduleRequest,
+)
 from src.schemas.templates import (
     CreateTemplateRequest,
     CreateTemplateResponse,
@@ -35,4 +44,11 @@ __all__ = [
     "MetricsTemplateResponse",
     "UpdateMetricsTemplateRequest",
     "ValidateMetricsTemplateResponse",
+    "CreateScheduleRequest",
+    "CreateScheduleResponse",
+    "ScheduleListItem",
+    "ScheduleDetailResponse",
+    "UpdateScheduleRequest",
+    "ExecutionListItem",
+    "ExecutionDetailResponse",
 ]

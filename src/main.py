@@ -15,6 +15,7 @@ from src.api import (
     jobs_router,
     metrics_analysis_router,
     pages_router,
+    schedules_router,
     templates_router,
 )
 from src.config import settings
@@ -25,12 +26,20 @@ from src.services import stream_analysis_runner
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理器"""
-    # 启动时：启动后台任务处理器
-    task = asyncio.create_task(stream_analysis_runner.start_background_processor())
+    # 启动时：启动后台任务处理器和调度器
+    stream_task = asyncio.create_task(stream_analysis_runner.start_background_processor())
+
+    # 启动调度器
+    from src.services.scheduler import scheduler_service
+    await scheduler_service.start()
+
     yield
-    # 关闭时：停止后台任务处理器
+
+    # 关闭时：停止后台任务处理器和调度器
     stream_analysis_runner.stop_background_processor()
-    await task
+    await stream_task
+
+    await scheduler_service.shutdown()
 
 
 # 创建 FastAPI 应用实例
@@ -48,6 +57,7 @@ app.include_router(jobs_router)
 app.include_router(pages_router)
 app.include_router(templates_router)
 app.include_router(metrics_analysis_router)
+app.include_router(schedules_router)
 
 # 配置静态文件和模板
 BASE_DIR = Path(__file__).resolve().parent

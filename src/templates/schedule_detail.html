@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}{{ schedule.name }} - Schedule 详情 - VMA{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6" id="scheduleDetail">
+  <!-- 页面头部 -->
+  <div class="bg-white rounded-lg shadow-sm p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900" id="scheduleName">{{ schedule.name }}</h1>
+        <p class="mt-1 text-sm text-gray-600" id="scheduleDesc">{{ schedule.description or '' }}</p>
+      </div>
+      <div class="flex items-center space-x-3">
+        <span id="statusBadge" class="px-3 py-1 rounded-full text-sm font-medium"></span>
+      </div>
+    </div>
+
+    <!-- 快速操作 -->
+    <div class="mt-6 flex items-center space-x-3" id="actionButtons">
+      <!-- 动态加载 -->
+    </div>
+  </div>
+
+  <!-- 基本信息 -->
+  <div class="bg-white rounded-lg shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">基本信息</h2>
+    <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <div>
+        <dt class="text-gray-500">Schedule ID</dt>
+        <dd class="mt-1 font-mono text-gray-900" id="scheduleId"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">创建时间</dt>
+        <dd class="mt-1 text-gray-900" id="createdAt"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">下次执行</dt>
+        <dd class="mt-1 text-gray-900" id="nextExecution"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">最近执行</dt>
+        <dd class="mt-1 text-gray-900" id="lastExecution"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">重复周期</dt>
+        <dd class="mt-1 text-gray-900" id="repeat"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">状态</dt>
+        <dd class="mt-1 text-gray-900" id="statusText"></dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- 编码器配置 -->
+  <div class="bg-white rounded-lg shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">编码器配置</h2>
+    <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <div>
+        <dt class="text-gray-500">编码器类型</dt>
+        <dd class="mt-1 text-gray-900" id="encoderType"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">仓库</dt>
+        <dd class="mt-1 text-gray-900 break-all" id="repo"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">分支</dt>
+        <dd class="mt-1 text-gray-900" id="branch"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">二进制路径</dt>
+        <dd class="mt-1 font-mono text-gray-900" id="binaryPath"></dd>
+      </div>
+      <div class="md:col-span-2">
+        <dt class="text-gray-500">构建脚本</dt>
+        <dd class="mt-1 font-mono text-xs text-gray-900 bg-gray-50 p-2 rounded" id="buildScript"></dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- 模板信息 -->
+  <div class="bg-white rounded-lg shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">模板信息</h2>
+    <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <div>
+        <dt class="text-gray-500">模板名称</dt>
+        <dd class="mt-1 text-gray-900" id="templateName"></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">模板类型</dt>
+        <dd class="mt-1 text-gray-900" id="templateType"></dd>
+      </div>
+      <div class="md:col-span-2">
+        <dt class="text-gray-500">模板 ID</dt>
+        <dd class="mt-1 font-mono text-gray-900" id="templateId"></dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- 执行历史 -->
+  <div class="bg-white rounded-lg shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">执行历史</h2>
+
+    <!-- 空状态 -->
+    <div id="emptyExecutions" class="hidden text-center py-8">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900">暂无执行历史</h3>
+      <p class="mt-1 text-sm text-gray-500">Schedule 还未执行过</p>
+    </div>
+
+    <!-- 加载状态 -->
+    <div id="loadingExecutions" class="text-center py-8">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <p class="mt-2 text-sm text-gray-600">加载中...</p>
+    </div>
+
+    <!-- 执行列表 -->
+    <div id="executionsList" class="hidden space-y-4">
+      <!-- 动态加载 -->
+    </div>
+  </div>
+
+  <!-- 返回链接 -->
+  <div class="flex items-center">
+    <a href="/schedules" class="text-blue-600 hover:text-blue-800">← 返回列表</a>
+  </div>
+</div>
+
+<script>
+const scheduleId = "{{ schedule_id }}";
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadSchedule();
+  await loadExecutions();
+});
+
+async function loadSchedule() {
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}`);
+    if (!res.ok) throw new Error('加载失败');
+
+    const schedule = await res.json();
+
+    // 基本信息
+    document.getElementById('scheduleName').textContent = schedule.name;
+    const desc = document.getElementById('scheduleDesc');
+    if (schedule.description) {
+      desc.textContent = schedule.description;
+      desc.parentElement.classList.remove('hidden');
+    }
+
+    document.getElementById('scheduleId').textContent = schedule.schedule_id;
+    document.getElementById('createdAt').textContent = formatDateTime(schedule.created_at);
+    document.getElementById('nextExecution').textContent = schedule.next_execution ? formatDateTime(schedule.next_execution) : '-';
+    document.getElementById('lastExecution').textContent = schedule.last_execution ? formatDateTime(schedule.last_execution) : '-';
+
+    const repeatLabels = { none: '不重复', daily: '每天', weekly: '每周', monthly: '每月' };
+    document.getElementById('repeat').textContent = repeatLabels[schedule.repeat] || schedule.repeat;
+
+    const statusLabels = { active: '运行中', paused: '已暂停', disabled: '已禁用' };
+    document.getElementById('statusText').textContent = statusLabels[schedule.status] || schedule.status;
+
+    // 状态徽章
+    const statusBadge = document.getElementById('statusBadge');
+    const statusStyles = {
+      active: 'bg-green-100 text-green-800',
+      paused: 'bg-orange-100 text-orange-800',
+      disabled: 'bg-gray-100 text-gray-800',
+    };
+    statusBadge.className = `px-3 py-1 rounded-full text-sm font-medium ${statusStyles[schedule.status] || statusStyles.disabled}`;
+    statusBadge.textContent = statusLabels[schedule.status] || schedule.status;
+
+    // 编码器配置
+    document.getElementById('encoderType').textContent = schedule.encoder_type;
+    document.getElementById('repo').textContent = schedule.encoder_config.repo;
+    document.getElementById('branch').textContent = schedule.encoder_config.branch;
+    document.getElementById('binaryPath').textContent = schedule.encoder_config.binary_path;
+    document.getElementById('buildScript').textContent = schedule.encoder_config.build_script;
+
+    // 模板信息
+    document.getElementById('templateName').textContent = schedule.template_name;
+    const templateTypeLabels = { metrics_analysis: 'Metrics 分析', metrics_comparison: 'Metrics 对比' };
+    document.getElementById('templateType').textContent = templateTypeLabels[schedule.template_type] || schedule.template_type;
+    document.getElementById('templateId').textContent = schedule.template_id;
+
+    // 操作按钮
+    const actionButtons = document.getElementById('actionButtons');
+    let buttonsHtml = '';
+
+    if (schedule.status === 'active') {
+      buttonsHtml += `<button onclick="pauseSchedule()" class="px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-semibold hover:bg-orange-700">暂停</button>`;
+    } else if (schedule.status === 'paused') {
+      buttonsHtml += `<button onclick="resumeSchedule()" class="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700">恢复</button>`;
+    }
+
+    buttonsHtml += `<button onclick="triggerSchedule()" class="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700">立即执行</button>`;
+    buttonsHtml += `<a href="/schedules/${scheduleId}/edit" class="px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700">编辑</a>`;
+    buttonsHtml += `<button onclick="copySchedule()" class="px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700">复制</button>`;
+    buttonsHtml += `<a href="/jobs?schedule_id=${scheduleId}" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">查看任务</a>`;
+    buttonsHtml += `<button onclick="deleteSchedule()" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700">删除</button>`;
+
+    actionButtons.innerHTML = buttonsHtml;
+
+  } catch (error) {
+    alert(error.message || '加载失败');
+  }
+}
+
+async function loadExecutions() {
+  const loading = document.getElementById('loadingExecutions');
+  const empty = document.getElementById('emptyExecutions');
+  const list = document.getElementById('executionsList');
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}/executions`);
+    if (!res.ok) throw new Error('加载失败');
+
+    const executions = await res.json();
+
+    loading.classList.add('hidden');
+
+    if (executions.length === 0) {
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    list.classList.remove('hidden');
+    list.innerHTML = executions.map(exec => {
+      const statusBadge = exec.build_status === 'success'
+        ? '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">成功</span>'
+        : '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">失败</span>';
+
+      return `
+        <div class="border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-3">
+              ${statusBadge}
+              <span class="text-sm font-medium text-gray-900">${formatDateTime(exec.executed_at)}</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              ${exec.job_id ? `<a href="/jobs/${exec.job_id}" class="text-sm text-blue-600 hover:text-blue-900">查看任务</a>` : ''}
+              ${exec.build_log_path ? `<button onclick="viewBuildLog('${exec.build_log_path}')" class="text-sm text-gray-600 hover:text-gray-900">查看构建日志</button>` : ''}
+            </div>
+          </div>
+          ${exec.error_message ? `<p class="text-sm text-red-600 mt-2">${escapeHtml(exec.error_message)}</p>` : ''}
+        </div>
+      `;
+    }).join('');
+
+  } catch (error) {
+    loading.classList.add('hidden');
+    console.error('加载执行历史失败:', error);
+  }
+}
+
+async function pauseSchedule() {
+  if (!confirm('确定要暂停此 Schedule 吗？')) return;
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}/pause`, { method: 'POST' });
+    if (!res.ok) throw new Error('暂停失败');
+    window.location.reload();
+  } catch (error) {
+    alert(error.message || '暂停失败');
+  }
+}
+
+async function resumeSchedule() {
+  if (!confirm('确定要恢复此 Schedule 吗？')) return;
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}/resume`, { method: 'POST' });
+    if (!res.ok) throw new Error('恢复失败');
+    window.location.reload();
+  } catch (error) {
+    alert(error.message || '恢复失败');
+  }
+}
+
+async function triggerSchedule() {
+  if (!confirm('确定要立即执行此 Schedule 吗？')) return;
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}/trigger`, { method: 'POST' });
+    if (!res.ok) throw new Error('执行失败');
+    alert('已触发执行，请稍后查看执行历史');
+    setTimeout(() => window.location.reload(), 2000);
+  } catch (error) {
+    alert(error.message || '执行失败');
+  }
+}
+
+async function copySchedule() {
+  if (!confirm('确定要复制此 Schedule 吗？')) return;
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}/copy`, { method: 'POST' });
+    if (!res.ok) throw new Error('复制失败');
+    window.location.href = '/schedules';
+  } catch (error) {
+    alert(error.message || '复制失败');
+  }
+}
+
+async function deleteSchedule() {
+  if (!confirm('确定要删除此 Schedule 吗？此操作不可恢复！')) return;
+
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('删除失败');
+    window.location.href = '/schedules';
+  } catch (error) {
+    alert(error.message || '删除失败');
+  }
+}
+
+async function viewBuildLog(logPath) {
+  try {
+    const res = await fetch(`/api/schedules/${scheduleId}/logs/${logPath}`);
+    if (!res.ok) throw new Error('加载日志失败');
+
+    const data = await res.json();
+
+    // 显示日志内容（可以用模态框或新窗口）
+    const logWindow = window.open('', '_blank');
+    logWindow.document.write(`
+      <html><head><title>构建日志</title></head>
+      <body style="font-family: monospace; white-space: pre-wrap; padding: 20px;">
+        ${escapeHtml(data.content)}
+      </body></html>
+    `);
+
+  } catch (error) {
+    alert(error.message || '加载日志失败');
+  }
+}
+
+function formatDateTime(isoString) {
+  const date = new Date(isoString);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+{% endblock %}
