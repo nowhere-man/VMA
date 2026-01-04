@@ -42,6 +42,32 @@
       </div>
     </div>
 
+    <!-- 输出设置（仅 Metrics对比 模式显示） -->
+    <div id="output_settings_section" class="space-y-4 border-t pt-6">
+      <h2 class="text-lg font-semibold text-gray-900">输出设置</h2>
+      <div class="grid md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">短边尺寸</label>
+          <input id="common_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率</label>
+          <input id="common_target_fps" type="number" step="0.001" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频帧率" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Metrics 策略</label>
+          <select id="common_upscale_to_source" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
+            <option value="true" selected>转码流上采样到源流分辨率</option>
+            <option value="false">源视频下采样到转码流分辨率</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">并发任务数</label>
+          <input id="common_concurrency" type="number" min="1" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="默认为1" />
+        </div>
+      </div>
+    </div>
+
     <!-- Anchor / 单侧 -->
     <div class="space-y-4 border-t pt-6">
       <div class="flex items-center justify-between">
@@ -57,7 +83,8 @@
         <input id="anchor_source_dir" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
         <p class="text-xs text-gray-500 mt-1">YUV文件名格式需满足：stream_wxh_fps.yuv。</p>
       </div>
-      <div id="anchor_encode_block" class="space-y-4">
+      <!-- 编码器配置（skip_encode 时隐藏） -->
+      <div id="anchor_encoder_block" class="space-y-4">
         <!-- 第一行：编码器类型 + 编码器路径 -->
         <div class="grid md:grid-cols-2 gap-4">
           <div>
@@ -81,29 +108,31 @@
           <input id="anchor_encoder_params" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
           <p id="anchor_params_hint" class="mt-1 text-xs text-gray-500"></p>
         </div>
-        <!-- 视频处理配置 -->
-        <div class="grid md:grid-cols-4 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">短边尺寸</label>
-            <input id="anchor_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率</label>
-            <input id="anchor_target_fps" type="number" step="0.001" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频帧率" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Metrics 策略</label>
-            <select id="anchor_upscale_to_source" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
-              <option value="true" selected>转码流上采样到源流分辨率</option>
-              <option value="false">源视频下采样到转码流分辨率</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">并发任务数</label>
-            <input id="anchor_concurrency" type="number" min="1" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="默认为1" />
-          </div>
+      </div>
+      <!-- 视频处理配置（仅 Metrics 分析模式显示） -->
+      <div id="anchor_video_config" class="grid md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">短边尺寸</label>
+          <input id="anchor_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
         </div>
-        <!-- 第三行：RC + 码率点位 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率</label>
+          <input id="anchor_target_fps" type="number" step="0.001" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频帧率" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Metrics 策略</label>
+          <select id="anchor_upscale_to_source" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
+            <option value="true" selected>转码流上采样到源流分辨率</option>
+            <option value="false">源视频下采样到转码流分辨率</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">并发任务数</label>
+          <input id="anchor_concurrency" type="number" min="1" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="默认为1" />
+        </div>
+      </div>
+      <!-- RC + 码率点位（始终显示） -->
+      <div id="anchor_rate_block" class="space-y-4">
         <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">RC<span class="text-red-500">*</span></label>
@@ -135,7 +164,8 @@
           <span>跳过视频编码</span>
         </label>
       </div>
-      <div id="test_encode_block" class="space-y-4">
+      <!-- 编码器配置（skip_encode 时隐藏） -->
+      <div id="test_encoder_block" class="space-y-4">
         <!-- 第一行：编码器类型 + 编码器路径 -->
         <div class="grid md:grid-cols-2 gap-4">
           <div>
@@ -159,29 +189,9 @@
           <input id="test_encoder_params" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" />
           <p id="test_params_hint" class="mt-1 text-xs text-gray-500"></p>
         </div>
-        <!-- 视频处理配置 -->
-        <div class="grid md:grid-cols-4 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">短边尺寸</label>
-            <input id="test_shortest_size" type="number" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频分辨率" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">目标帧率</label>
-            <input id="test_target_fps" type="number" step="0.001" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="不填则使用源视频帧率" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Metrics 策略</label>
-            <select id="test_upscale_to_source" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500">
-              <option value="true" selected>转码流上采样到源流分辨率</option>
-              <option value="false">源视频下采样到转码流分辨率</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">并发任务数</label>
-            <input id="test_concurrency" type="number" min="1" class="w-full border px-3 py-2 rounded focus:ring-2 focus:ring-blue-500" placeholder="默认为1" />
-          </div>
-        </div>
-        <!-- 第三行：RC + 码率点位 -->
+      </div>
+      <!-- RC + 码率点位（始终显示） -->
+      <div id="test_rate_block" class="space-y-4">
         <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">RC<span class="text-red-500">*</span></label>
@@ -231,8 +241,8 @@ const initialType = urlParams.get('type') === 'metrics' ? 'metrics_analysis' : '
 function $(id) { return document.getElementById(id); }
 const anchorSkip = $('anchor_skip');
 const testSkip = $('test_skip');
-const anchorEncode = $('anchor_encode_block');
-const testEncode = $('test_encode_block');
+const anchorEncoderBlock = $('anchor_encoder_block');
+const testEncoderBlock = $('test_encoder_block');
 const templateTypeSelect = $('template_type');
 const testSection = $('test_section');
 const anchorTitle = $('anchor_title');
@@ -242,6 +252,8 @@ const commonSourceInput = $('common_source_dir');
 const anchorSourceInput = $('anchor_source_dir');
 const testBitstreamInput = $('test_bitstream_dir');
 const anchorBitstreamInput = $('anchor_bitstream_dir');
+const outputSettingsSection = $('output_settings_section');
+const anchorVideoConfig = $('anchor_video_config');
 
 function toggleRequired(el, required) {
   if (!el) return;
@@ -252,13 +264,14 @@ function toggleRequired(el, required) {
   }
 }
 
-function toggleBlocks() {
-  anchorEncode.classList.toggle('hidden', anchorSkip.checked);
-  testEncode.classList.toggle('hidden', testSkip.checked);
+// 只隐藏编码器类型、路径、参数三项
+function toggleEncoderBlocks() {
+  anchorEncoderBlock.classList.toggle('hidden', anchorSkip.checked);
+  testEncoderBlock.classList.toggle('hidden', testSkip.checked);
 }
-anchorSkip.addEventListener('change', toggleBlocks);
-testSkip.addEventListener('change', toggleBlocks);
-toggleBlocks();
+anchorSkip.addEventListener('change', toggleEncoderBlocks);
+testSkip.addEventListener('change', toggleEncoderBlocks);
+toggleEncoderBlocks();
 
 function applyTypeUI(type) {
   if (type === 'metrics_analysis') {
@@ -266,6 +279,8 @@ function applyTypeUI(type) {
     anchorTitle.textContent = '输出配置';
     commonSourceSection.classList.add('hidden');
     anchorSourceSection.classList.remove('hidden');
+    outputSettingsSection.classList.add('hidden');
+    anchorVideoConfig.classList.remove('hidden');
     toggleRequired(commonSourceInput, false);
     toggleRequired(testBitstreamInput, false);
     toggleRequired(anchorSourceInput, true);
@@ -275,6 +290,8 @@ function applyTypeUI(type) {
     anchorTitle.textContent = 'Anchor 对照组';
     commonSourceSection.classList.remove('hidden');
     anchorSourceSection.classList.add('hidden');
+    outputSettingsSection.classList.remove('hidden');
+    anchorVideoConfig.classList.add('hidden');
     toggleRequired(commonSourceInput, true);
     toggleRequired(testBitstreamInput, true);
     toggleRequired(anchorSourceInput, false);
@@ -320,6 +337,21 @@ function collectSide(prefix) {
   } else {
     sourceDir = $('common_source_dir')?.value.trim() || '';
   }
+
+  // 对于 Metrics 对比模式，使用公共输出设置
+  let shortestSize, targetFps, upscaleToSource, concurrency;
+  if (type === 'metrics_comparison') {
+    shortestSize = $('common_shortest_size').value ? parseInt($('common_shortest_size').value) : null;
+    targetFps = $('common_target_fps').value ? parseFloat($('common_target_fps').value) : null;
+    upscaleToSource = $('common_upscale_to_source').value === 'true';
+    concurrency = $('common_concurrency').value ? parseInt($('common_concurrency').value) : 1;
+  } else {
+    shortestSize = $(prefix + '_shortest_size').value ? parseInt($(prefix + '_shortest_size').value) : null;
+    targetFps = $(prefix + '_target_fps').value ? parseFloat($(prefix + '_target_fps').value) : null;
+    upscaleToSource = $(prefix + '_upscale_to_source').value === 'true';
+    concurrency = $(prefix + '_concurrency').value ? parseInt($(prefix + '_concurrency').value) : 1;
+  }
+
   return {
     skip_encode: $(prefix + '_skip').checked,
     source_dir: sourceDir,
@@ -329,10 +361,10 @@ function collectSide(prefix) {
     rate_control: $(prefix + '_rate_control').value || null,
     bitrate_points: parsePoints($(prefix + '_bitrate_points').value),
     bitstream_dir: $(prefix + '_bitstream_dir').value.trim(),
-    shortest_size: $(prefix + '_shortest_size').value ? parseInt($(prefix + '_shortest_size').value) : null,
-    target_fps: $(prefix + '_target_fps').value ? parseFloat($(prefix + '_target_fps').value) : null,
-    upscale_to_source: $(prefix + '_upscale_to_source').value === 'true',
-    concurrency: $(prefix + '_concurrency').value ? parseInt($(prefix + '_concurrency').value) : 1,
+    shortest_size: shortestSize,
+    target_fps: targetFps,
+    upscale_to_source: upscaleToSource,
+    concurrency: concurrency,
   };
 }
 
@@ -377,11 +409,20 @@ async function loadTemplate() {
     };
     fill('anchor', data.anchor);
     fill('test', data.test);
-    // 对比模式下，填充公共源视频目录
-    if (data.template_type === 'metrics_comparison' && data.anchor?.source_dir) {
-      $('common_source_dir').value = data.anchor.source_dir || '';
+    // 对比模式下，填充公共源视频目录和输出设置
+    if (data.template_type === 'metrics_comparison') {
+      if (data.anchor?.source_dir) {
+        $('common_source_dir').value = data.anchor.source_dir || '';
+      }
+      // 填充公共输出设置（从 anchor 获取）
+      if (data.anchor) {
+        $('common_shortest_size').value = data.anchor.shortest_size || '';
+        $('common_target_fps').value = data.anchor.target_fps || '';
+        $('common_upscale_to_source').value = data.anchor.upscale_to_source !== false ? 'true' : 'false';
+        $('common_concurrency').value = data.anchor.concurrency || '';
+      }
     }
-    toggleBlocks();
+    toggleEncoderBlocks();
     if (READONLY) setReadonlyMode();
   } catch (e) {
     errBox.textContent = e.message || '加载模板失败';
@@ -392,7 +433,7 @@ function setReadonlyMode() {
   if (!READONLY) return;
   const inputs = form.querySelectorAll('input, select, textarea, button');
   inputs.forEach(el => {
-    // 保留顶部导航的“返回/编辑”按钮
+    // 保留顶部导航的"返回/编辑"按钮
     if (el.id === 'submitBtn') {
       el.style.display = 'none';
       return;
